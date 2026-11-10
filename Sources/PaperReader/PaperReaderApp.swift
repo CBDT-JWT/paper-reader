@@ -5,6 +5,14 @@ import PaperCore
 @main enum ApplicationEntry {
     @MainActor static func main() {
         let arguments = ProcessInfo.processInfo.arguments
+        if arguments.count == 4, arguments[1] == "--verify-workspace-bookmark" {
+            do {
+                let bookmark = try Data(contentsOf: URL(fileURLWithPath: arguments[2]))
+                let workspace = try WorkspaceLocation.resolve(bookmark: bookmark, cloud: false)
+                let expected = URL(fileURLWithPath: arguments[3]).resolvingSymlinksInPath().standardizedFileURL.path
+                exit(workspace.folder.resolvingSymlinksInPath().standardizedFileURL.path == expected ? 0 : 1)
+            } catch { exit(1) }
+        }
         if arguments.count == 3, arguments[1] == "--export-annotations" {
             do {
                 let request = try JSONDecoder().decode(AnnotationExportRequest.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[2])))
@@ -111,6 +119,7 @@ struct PaperReaderApp: App {
     func chooseWorkspace(cloud: Bool) {
         guard !isSwitching else { return }
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.folder]
         panel.message = cloud ? L("在 iCloud Drive 中选择或新建 Paper Reader 文件夹。原文献库会保留。") : L("选择已有的论文文件夹，按原有层级打开 PDF。")
         if cloud { panel.directoryURL = WorkspaceLocation.cloudHint }
         panel.begin { [weak self] response in
@@ -146,7 +155,7 @@ struct PaperReaderApp: App {
             let store = try await Task.detached { try LibraryStore(root: workspace.data, indexURL: WorkspaceLocation.indexURL(for: workspace.folder), documentsRoot: workspace.folder) }.value
             candidate = store
             _ = try await store.scanWorkspace()
-            let bookmark = try await Task.detached { try workspace.folder.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) }.value
+            let bookmark = try await Task.detached { try WorkspaceLocation.bookmark(for: workspace.folder) }.value
             try await model?.store.copyDeviceState(to: store.deviceDirectory)
             await model?.shutdown()
             await model?.store.close()

@@ -2,79 +2,79 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key>
-	<string>PaperReader</string>
-	<key>CFBundleIdentifier</key>
-	<string>dev.paperreader.mac</string>
-	<key>CFBundleName</key>
-	<string>Paper Reader</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Paper Reader</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.4.0</string>
-	<key>CFBundleVersion</key>
-	<string>5</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>PDF Document</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>com.adobe.pdf</string>
-			</array>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.adobe.pdf</string>
+			</array>
 		</dict>
 	</array>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>PaperReader</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.paperreader.mac</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
 		<string>zh-Hans</string>
 	</array>
+	<key>CFBundleName</key>
+	<string>Paper Reader</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.4.1</string>
+	<key>CFBundleVersion</key>
+	<string>6</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon.icns</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://www.weitao-jiang.cn/paper-reader/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>g7+q2Tr8Zhjlrhc23DuM2JzTzgOKy0n4SrqTb4jsKmk=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>dev.paperreader.library-item</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Paper Reader library item</string>
+			<key>UTTypeIdentifier</key>
+			<string>dev.paperreader.library-item</string>
 		</dict>
 	</array>
-	<key>SUFeedURL</key>
-	<string>https://www.weitao-jiang.cn/paper-reader/appcast.xml</string>
-	<key>SUEnableSystemProfiling</key>
-	<false/>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<key>SUVerifyUpdateBeforeExtraction</key>
-	<true/>
-	<key>SUPublicEDKey</key>
-	<string>g7+q2Tr8Zhjlrhc23DuM2JzTzgOKy0n4SrqTb4jsKmk=</string>
-	<key>SURequireSignedFeed</key>
-	<true/>
 </dict>
 </plist>

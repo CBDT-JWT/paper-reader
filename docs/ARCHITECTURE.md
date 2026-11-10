@@ -46,7 +46,7 @@ Pure tests cover identity/file safety, coordinate transforms, metadata/citations
 
 ## Folder workspaces and iCloud Drive (0.4)
 
-`WorkspaceLocation` owns a user-selected security-scoped folder bookmark. It does not assume that a hardcoded iCloud path is authoritative: resource ubiquity is checked on the selection/ancestors. `NSOpenPanel` is the normal authorization surface. No CloudKit container or iCloud entitlement is required to coordinate ordinary user-selected iCloud Drive documents. The known Mobile Documents path is only a picker hint.
+`WorkspaceLocation` owns a user-selected persistent folder bookmark. It does not assume that a hardcoded iCloud path is authoritative: resource ubiquity is checked on the selection/ancestors. `NSOpenPanel` is the normal authorization surface. The Developer ID build does not adopt App Sandbox and uses ordinary bookmarks, resolved without the sandbox-only `withSecurityScope` flag. A new-process verifier checks persistence across process boundaries, not only in the creating process. No CloudKit container or iCloud entitlement is required to coordinate ordinary user-selected iCloud Drive documents. The known Mobile Documents path is only a picker hint.
 
 `LibraryStore.documentsRoot` links discovered PDFs through a contained, symlink-rejecting relative path. The shared `.paper-reader/<UUID>` directory holds manifests, notes, assets and sidecars; migrated managed PDFs may remain there as `paper.pdf`. `WorkspaceLibrary` preserves IDs through app moves and a device-local resource-identifier map for Finder moves. `LibraryOrganization` performs physical moves only in folder workspaces and refuses overwrites/cycles/nonempty folder removal. External originals survive removal from the workspace index.
 

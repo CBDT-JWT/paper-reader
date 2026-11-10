@@ -23,8 +23,13 @@ struct WorkspaceLocation: Sendable {
     }
     static func resolve(bookmark: Data, cloud: Bool) throws -> WorkspaceLocation {
         var stale = false
-        let url = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope, .withoutUI], bookmarkDataIsStale: &stale)
+        // The Developer ID distribution does not adopt App Sandbox. Ordinary bookmarks
+        // survive relaunch without a sandbox-only security token tied to a process.
+        let url = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI], bookmarkDataIsStale: &stale)
         return WorkspaceLocation(folder: url.standardizedFileURL, isCloud: cloud)
+    }
+    static func bookmark(for folder: URL) throws -> Data {
+        try folder.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
     }
     func prepare() throws {
         var isDirectory: ObjCBool = false

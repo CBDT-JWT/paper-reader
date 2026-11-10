@@ -42,7 +42,14 @@ import PaperCore
             try check(!FileManager.default.fileExists(atPath: cloud.store.root.appendingPathComponent("library.sqlite").path) && !cloud.store.deviceDirectory.path.hasPrefix(shared.path), "SQLite and device data stay outside the shared folder")
             let bookmark = try bootstrap.preferences.data(forKey: WorkspaceLocation.bookmarkKey).unwrap()
             let restored = try WorkspaceLocation.resolve(bookmark: bookmark, cloud: true)
-            try check(restored.folder.resolvingSymlinksInPath().standardizedFileURL.path == shared.resolvingSymlinksInPath().standardizedFileURL.path, "Security-scoped workspace bookmark resolves for next launch")
+            try check(restored.folder.resolvingSymlinksInPath().standardizedFileURL.path == shared.resolvingSymlinksInPath().standardizedFileURL.path, "Workspace bookmark resolves to the selected directory")
+            let bookmarkFile = root.appendingPathComponent("workspace.bookmark")
+            try bookmark.write(to: bookmarkFile, options: .atomic)
+            let verifier = Process(); verifier.executableURL = Bundle.main.executableURL
+            verifier.arguments = ["--verify-workspace-bookmark", bookmarkFile.path, shared.path]
+            try verifier.run()
+            let bookmarkStatus = await Task.detached { verifier.waitUntilExit(); return verifier.terminationStatus }.value
+            try check(bookmarkStatus == 0, "A fresh application process resolves the persisted workspace bookmark")
             try await wait { (try? await cloud.editor.call("diagnostics") as? [String: Any])?["imageCount"] as? Int == 1 }
             checks.append("Real WKWebView resolves migrated relative screenshot assets")
             let remote = try LibraryStore(root: cloud.store.root, indexURL: root.appendingPathComponent("SecondDevice/index.sqlite"), documentsRoot: shared)

@@ -1,0 +1,37 @@
+{
+  "checks" : [
+    "Real WKWebView loaded bundled Tiptap offline",
+    "PDFKit opened a real three-page PDF",
+    "KaTeX rendered inline and block equations in WKWebView",
+    "Clicking a rendered equation reopens editable LaTeX",
+    "Formula source edits serialize back to standard Markdown",
+    "Formula editing is undoable",
+    "Real JS bridge autosaved a complete Markdown note",
+    "Save preserved equations, tasks and table content",
+    "Capture sidecar stores paper ID, page and PDF rectangle",
+    "High resolution PNG persisted beside Markdown",
+    "WKWebView resolved a relative local screenshot image",
+    "Clicking a note screenshot reveals its original PDF page and region",
+    "Capture and navigation did not modify the original PDF",
+    "Unsupported Markdown import is rejected before mutation",
+    "Rejected import left the existing editor content intact",
+    "Imports use independent stable UUIDs",
+    "Undo history does not cross paper boundaries",
+    "Native Markdown file import preserved editable text and math",
+    "Markdown import copied relative images with collision-free paths",
+    "Switching papers restored the correct independent note",
+    "Markdown package export includes its relative image assets",
+    "Native WebKit print operation exported a PDF without external software",
+    "Native PDF export paginated a long notebook",
+    "PDF export includes the final section without truncation"
+  ],
+  "date" : "2026-11-10T03:13:00Z",
+  "metrics" : {
+    "cachedPaperSwitchMs" : 12.992958,
+    "exportedNotePages" : 11,
+    "fixtureGenerateImportAndOpenMs" : 91.760959,
+    "offlineEditorReadyMs" : 572.32100000000003
+  },
+  "os" : "Version 27.3 (Build 26C5035r)",
+  "success" : true
+}

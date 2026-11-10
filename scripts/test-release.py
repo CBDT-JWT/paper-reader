@@ -24,7 +24,10 @@ with tempfile.TemporaryDirectory(prefix='PaperReader-SignatureTest-') as folder:
  assert run(feed).returncode==0
  assert run('--verify',feed).returncode==0
  checks.append('Official Sparkle tool signs and verifies an actual RSS appcast')
- feed.write_bytes(feed.read_bytes().replace(b'Paper Reader Updates',b'TAMPERED Updates'))
+ original=feed.read_bytes()
+ modified=original.replace(b'<title>',b'<title>TAMPERED ',1)
+ assert modified!=original,'Appcast tampering fixture must actually change the signed content'
+ feed.write_bytes(modified)
  assert run('--verify',feed).returncode!=0
  checks.append('Official Sparkle verifier rejects modified feed content')
 print(json.dumps({'passed':len(checks),'checks':checks},indent=2))

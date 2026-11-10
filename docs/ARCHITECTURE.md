@@ -1,32 +1,45 @@
-# Architecture and implementation checkpoints
+# Architecture
 
-Phase 1 is the current delivery target. Phase 2 features are only claimed when verified.
+0.2 implements the core workflow across Phases 1–4. README lists deliberately bounded or deferred capabilities; this is not a claim of exhaustive production certification.
 
-- `PaperCore`: Sendable domain records, actor-owned SQLite index and atomic file store, Core Graphics PDF rasterization. No SwiftUI dependencies.
-- `PaperReader`: MainActor application state, command registry, SwiftUI shell, AppKit PDFView, WKWebView adapter. Views dispatch actions; file IO is in an actor.
-- `WebEditor`: pinned MIT Tiptap 3, official Markdown adapter, KaTeX; esbuild bundles all JS, CSS and fonts offline. Source and generated resources are versioned.
-- Library layout: `<Application Support>/PaperReader/Library/<UUID>/{paper.pdf,note.md,assets/,sources.json}`. The SQLite index is rebuildable from per-paper `paper.json`; PDFs are copied without modification. No account required.
-- JS bridge messages always carry paper ID. Native state rejects stale messages after switching. JS serialization is synchronous at every editor update; atomic IO happens asynchronously. Explicit save, export, switching and termination flush pending work. Unrepresentable imported Markdown is rejected before replacing a note. Relative local image assets are preflighted, copied under new UUID names and rewritten in the Markdown tree.
-- Source references: relative images plus standard Markdown links `paperreader://source/<UUID>`. Page and PDF-space rectangle are stored independently in `sources.json`.
-- Custom URL scheme serves only bundled editor assets and the active library's contained assets; arbitrary path traversal and remote editor subresources are blocked.
-- PDF crop service owns a fresh CGPDFDocument per detached task. PDFKit UI document stays on MainActor. Coordinates are PDF user space, transformed through crop-box rotation for raster output.
+## Module boundaries
 
-## Independently verifiable steps
+- **PaperCore**: Sendable domain records; actor-owned SQLite and atomic file store; rebuildable manifests; folders/trash; Core Graphics crop renderer; pure column layout and reading-order algorithm; Crossref/arXiv clients; bibliographic formatting; system language resolution; provider protocol and OpenAI-compatible SSE client. No SwiftUI dependency.
+- **PaperReader**: MainActor orchestration (`AppModel`), shared `CommandRegistry`, hierarchical library UI, AppKit PDF view and native overlays, WKWebView adapter, settings, AI controller, Codex JSON-RPC client. Views dispatch commands; persistent IO runs in the library actor.
+- **WebEditor**: pinned Tiptap 3, official Markdown adapter, KaTeX, custom image resizing and Mermaid code-block node views. esbuild includes JS/CSS/fonts/licenses in the application; no CDN at runtime.
 
-1. Build native package and app bundle; launch a real native window.
-2. Offline WKWebView loads Tiptap and KaTeX; text editing emits Markdown.
-3. Supported Markdown parse → edit → serialize → parse preserves structure, math, tables, tasks, images and source links.
-4. Persistent paper IDs, note association, atomic save and external-change rejection; restart and recovery.
-5. PDF selection rectangle renders at 3× in page coordinates, including rotations; image inserts at note cursor and links back to PDF.
-6. Native open/import/export and adjustable native split views; verify with a real generated PDF fixture.
+## Data flow and ownership
 
-## Next phases
+Paper UUID is the only identity; title/path/folder are mutable attributes. Each paper has ordinary PDF/Markdown/assets and independent source, annotation, metadata and conversation records. SQLite is rebuilt from manifests at startup. Folder cycles are rejected. Trash moves the entire managed directory and supports restoration.
 
-Phase 2 remaining: full hierarchical folder management, complete configurable command bindings, robust import of arbitrary Markdown dialects, production print pagination, multi-window note view, broad hardware/performance testing.
-Phase 3: sidecar annotations with undo, column-aware line layout/cache/mask, metadata lookup/validation and citation formats. No approximation claiming multi-column support in Phase 1.
-Phase 4: provider protocol, Codex App Server transport, cloud streaming, constrained read/search tools, explicit diff approval and undo. No arbitrary shell/file tool exposed. Codex CLI is not local inference.
+The WebKit bridge carries paper ID on every edit. Stale updates are rejected. One save worker owns revision transitions; switching, export and termination flush WebKit and the queue. Atomic note replacement retains the previous file. External edits are polled every two seconds and checked again on save; conflict copies preserve both authors' content. Unsupported Markdown fails before mutation; semantic round-trip validation does not promise original whitespace.
 
-## Risks
+PDFKit UI documents are transferred once from background construction and then used on MainActor. The last three remain cached. PDF coordinates are canonical; crop renderer owns a separate CGPDFDocument per background task and handles rotation/crop origin. Page text/layout extraction uses fresh, worker-owned PDFKit documents; the visible document is not shared with workers. PDFKit annotated export is handled by a short-lived instance of the same executable in `--export-annotations` mode: annotation construction, serialization and release run on that process's main thread, while the interactive process awaits asynchronously. The helper has no UI, model access or shell evaluation.
 
-Tiptap's official Markdown package is beta. Guard import by semantic round-trip validation and preserve original imports. Markdown normalization is expected, byte-for-byte formatting preservation is not. Unsupported syntax must not be silently overwritten.
-WKWebView and PDFKit require actual macOS integration tests beyond pure unit tests. Export uses asynchronous WebKit print pagination and a MainActor completion bridge, writes to a temporary file, then atomically replaces the destination. A real 11-page fixture passed; broad layout QA remains before a production claim. SwiftPM resources are copied into the app bundle by the build script. App is ad-hoc signed in a non-synced cache directory, with a launch symlink and portable ZIP, and is not notarized for distribution.
+## Focus and annotations
+
+Annotation records are independent PDF-space geometry, with undo/redo snapshots and serialized atomic sidecar saves. Laser marks expire and never persist. Source highlights are separate temporary overlays.
+
+Focus extracts text line rectangles once per page, groups horizontal overlaps into up to four columns, and separates spanning blocks. Focus windows stay within one column and one vertical band. Reading order traverses each column before advancing, with spanning headings/formulas between bands. Manual columns clip geometry explicitly. Scan fallback is a geometric band, not OCR.
+
+Mouse tracking updates the anchor; a click under the drag threshold toggles pinning. Pinned arrows navigate cached reading order; adjacent cached pages can be crossed. Scrolling in mouse mode re-anchors within the viewport. When a pinned line is off-screen, the dark field remains enabled with no visible hole.
+
+`ScreenFocusMask` creates one nonactivating, mouse-transparent window per NSScreen.frame. A CAShapeLayer draws a black mask with merged rectangular holes converted from PDF to window to screen coordinates. Windows are above the app/menu bar and hide when the app resigns active. No screen capture, global input interception or screen-recording permission is used. Esc disables focus. Geometry observers filter the PDF window to avoid feedback from mask windows.
+
+## AI safety and interchangeability
+
+`AIProvider` consumes `AIRequest` and streams text/status events. Cloud and local HTTP clients implement the OpenAI-compatible chat/SSE/function protocol; loopback HTTP is permitted, other endpoints require HTTPS. Codex starts a stdio App Server with shell, apps, image-file tools, MCP/plugins, multi-agent and built-in web search disabled; ephemeral read-only threads expose only the declared research tools. Permission and unknown capability requests are refused.
+
+Only the app resolves the current paper/note/source index. Model tools never take arbitrary file paths. Rendered PDF images are attached through native multimodal fields, not filenames. External scholarly retrieval uses Crossref and returns actual metadata URLs. User must enable it in settings.
+
+AI note tools create a proposal only. The user sees before/after content and applies explicitly; the editor compares the expected original Markdown before replacement, validates supported syntax, and creates a separate undo group. Conversations are saved per paper and restored across launches. API keys use Keychain; provider preferences use UserDefaults. Codex is a local transport process and may use remote inference.
+
+## UI and localization
+
+Native three-column split layout remembers widths/visibility. Adaptive toolbars have 30-point icon targets, hidden redundant menu indicators, spacing and native semantic colors; UI fonts use 12/14/20 points and common radius 8. Editor/document content uses reading typography.
+
+Chinese source keys resolve through `L`; generated English/Chinese resources are bundled in both SwiftPM and the app's main bundle so system menus choose the same language. Web editor receives a matching language parameter. `localize.py --check` rejects missing English entries without rewriting files. Unsupported system languages fall back to English; document content is never translated automatically.
+
+## Validation strategy
+
+Pure tests cover identity/file safety, coordinate transforms, metadata/citations and two/three-column layouts including spanning blocks. Node tests cover Markdown parse/edit/serialize semantics, source links, math, image sizes and Mermaid source retention. The real app's isolated self-test covers WebKit, PDFKit, whole-screen native window coverage, focus pinning, annotated PDF export, diffs/undo, HTTP SSE/tool/image contracts and multipage native print export in both languages. Optional live tests verify Crossref and installed Codex model listing/text/vision. See VALIDATION.md for exact evidence and limits.

@@ -1,128 +1,134 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台。当前交付 **Phase 1 技术验证版，以及部分 Phase 2 基础联动能力**。这是能构建、启动、编辑、保存和导出的原生应用；完整的日常使用 MVP 仍需下一阶段完善。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.2 版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
 
-## 构建与运行
+## 构建和运行
 
-需要 macOS、Xcode（支持 Swift 6）以及命令行工具。部署目标 macOS 14；本次实测为 Apple Silicon、macOS 27.3、Xcode 27、Swift 6.4。Intel 和旧版系统尚未验证。
+需要 macOS 14+、Xcode（Swift 6）及 Python 3。本次实测 Apple Silicon、macOS 27.3、Xcode 27、Swift 6.4；Intel 和旧系统尚未实测。
 
 ```sh
 ./scripts/build-app.sh
 open "build/Paper Reader.app"
 ```
 
-工程已提交离线编辑器构建产物，因此只构建原生应用时不要求 Node 或联网。修改编辑器时需要 Node.js 20.19+（本次使用 26）：
+已提交离线编辑器产物，原生构建无需 Node 或在线 CDN。修改前端及运行完整测试需要 **Node 22.12+**（Mermaid 的要求；本机使用 26.4）：
 
 ```sh
 cd WebEditor
 npm ci
 npm run build
 cd ..
-./scripts/build-app.sh
-```
-
-有 `node_modules` 时，打包脚本自动重建编辑器。完整测试中的 jsdom 需要 Node 20.19+。前端依赖全部锁定在 `package-lock.json`。
-
-构建和临时签名放在 `~/Library/Caches/PaperReader/Build/`，避免同步目录给 `.app` 添加 Finder 属性而破坏签名。`build/Paper Reader.app` 是指向完整应用的启动软链接，**不是便携副本**。可迁移的应用包为 `build/PaperReader-macOS.zip`，解压后可将应用拖入 Applications。也可用 `PAPER_READER_BUILD_DIR` 自定义非同步构建目录。当前使用本地 ad-hoc 签名，未公证；不提供 App Store 发布包。
-
-Xcode 可直接打开 `Package.swift` 阅读、调试工程。命令行推荐上述脚本；本机同步目录中的默认 `.build` 会受到 File Provider 的签名属性影响。
-
-## 当前可用
-
-- SwiftUI + AppKit 原生窗口、菜单、文件选择和设置；三栏可拖动、收起，记忆分栏宽度和面板显隐。
-- 文献列表支持搜索、按标题/导入时间排序；PDF 文件选择导入与拖入入口。当前是平面文献库，尚非完整文件树。
-- PDFKit 连续滚动、缩放、适合窗口、上一页/下一页、页码跳转、原文搜索、选区与复制。
-- 最近三个 PDF 的内存缓存；每篇论文记忆页码和缩放设置。尚未恢复页内精确滚动位置。
-- 真正的离线 Tiptap 所见即所得编辑器：标题、段落、粗斜体、删除线、`==高亮==`、引用、代码、列表、任务列表、Tab/Shift+Tab 缩进、表格、超链接和图片。
-- KaTeX 行内/块级公式；点击公式打开 LaTeX 编辑面板，改写可撤销。
-- 标准 `.md` 文件导入、编辑、保存和导出。导入会检查支持语法的语义往返；资源中的 PNG/JPEG/GIF/WebP 相对图片会复制并改写为独立资源路径。
-- 原生保存面板直接导出笔记 PDF，使用 WebKit 的异步分页打印；无需 Typora、Pandoc 或在线服务。导出先写临时文件，再原子替换目标。
-- PDF 框选以 3× 分辨率从 PDF 坐标渲染 PNG，插入笔记光标位置；图片和摘录保留论文 ID、页码、原文矩形及独立来源索引。
-- 点击截图或其来源链接回到 PDF，并用独立临时高亮层标出区域。无需修改原 PDF，即使图表区域没有文字也能反馈位置。
-- 每篇论文用 UUID 关联独立笔记；350 ms 自动保存、切换/导出/退出前同步编辑器并刷新保存队列。
-- 笔记原子写入，保留 `note.previous.md`。保存时检测外部内容变更，保留 `note-conflict-*.md`，不会直接覆盖外部版本。
-- 统一 CommandRegistry，设置中可配置应用命令的单字符组合键，并提示已知系统保留键和应用内冲突。原生文本编辑及窗口命令保留系统行为。
-
-首次启动可在 File 菜单选择“打开示例论文”。示例 PDF 在本地生成，没有下载第三方论文。
-
-## 快捷键
-
-| 操作 | 默认快捷键 |
-| --- | --- |
-| 导入 PDF | Cmd+O |
-| 保存笔记 | Cmd+S |
-| PDF 框选截图 | Cmd+Option+S，拖动选择；Esc 取消 |
-| 摘录 PDF 选中文字 | Cmd+Shift+E |
-| 放大 / 缩小 | Cmd+= / Cmd+- |
-| 适合窗口 | Cmd+0 |
-| 文献库 / 笔记显隐 | Cmd+Option+1 / Cmd+Option+2 |
-| 设置 | Cmd+, |
-| 打印当前论文 | Cmd+P |
-| 关闭窗口 | Cmd+W |
-
-截图/摘录亦可从 PDF 右键菜单和工具栏调用。笔记工具栏支持格式命令；文本编辑区使用 Tiptap 的标准编辑快捷键。完整命令覆盖、按键录制器和更全面的系统级冲突检查留待 Phase 3。
-
-## 文件与恢复
-
-默认文献库：`~/Library/Application Support/PaperReader/Library/`。可设置 `PAPER_READER_LIBRARY=/absolute/path` 使用其他独立文献库。
-
-```text
-Library/
-  library.sqlite                  SQLite 索引（WAL）
-  <paper UUID>/
-    paper.json                    稳定 ID、标题、阅读状态
-    paper.pdf                     导入原件的副本
-    note.md                       普通 UTF-8 Markdown
-    note.previous.md              上一个完整笔记版本
-    note-conflict-<UUID>.md        检测到外部修改时保留的编辑副本
-    sources.json                  截图与摘录来源索引
-    assets/
-      <UUID>.png
-```
-
-PDF 不会被截图、摘录或来源高亮修改。导入后移动外部原件不影响文献关联。备份时退出应用并复制整个 Library；重新指定到复制后的目录即可。启动时扫描 `paper.json` 并重建 SQLite 索引，因此丢失索引仍可从普通文件恢复。请勿删除每篇论文的 `paper.json`；尚未实现无 manifest 的孤立文件恢复界面。
-
-保存冲突发生后，当前笔记停止自动写回，自己的版本已经存入冲突副本。用“在 Finder 中显示文件”比较并合并，然后重新打开该论文以读取外部版本。当前是**保存时的冲突检测**，未提供实时文件监视或图形化合并器。恢复前一个版本可在退出应用后将 `note.previous.md` 复制回 `note.md`。
-
-Markdown 导出生成 `<UUID>/note.md`、`assets/`、`sources.json` 和 `paper.json` 文件夹；不复制整篇 PDF。资源为相对路径。其他 Markdown 软件能读取文字、公式源码和图片；`paperreader://` 来源回跳需要本应用及对应文献索引。
-
-## 测试
-
-```sh
 ./scripts/test.sh
 ```
 
-该脚本运行编辑器测试、依赖审计、Swift XCTest、原生构建，并在**真实应用窗口与 WKWebView** 中运行集成自测。需要图形化 macOS 登录会话；会短暂打开测试窗口。集成数据使用新建的 `/tmp/PaperReader-Integration.XXXXXX`，不使用默认文献库。测试产物保留在临时目录方便检查；每次结果写入 `build/integration-results.json`。集成测试会使用同一 bundle 的窗口恢复偏好，但不会修改用户论文文件。
+打包脚本在存在 `WebEditor/node_modules` 时自动重建前端。依赖版本锁定于 `package-lock.json`。
 
-已通过 **6 项 Swift 测试、9 项编辑器测试、24 项原生集成检查**。包含四种页面旋转、非零 crop box 原点、文件安全、真实 JS 桥接自动保存、独立笔记切换、公式重新编辑/撤销、Markdown 图片资源迁移、来源回跳，以及长笔记 11 页导出。已实际操作原生界面验证公式、拖动截图、快捷键冲突和保存面板导出；已渲染检查导出 PDF 首尾页。
+构建与 ad-hoc 签名位于 `~/Library/Caches/PaperReader/Build/`，避免同步目录的 Finder 属性破坏签名。`build/Paper Reader.app` 为启动软链接；便携包为 **`build/PaperReader-macOS.zip`**，解压后可拖入 Applications。使用 `PAPER_READER_BUILD_DIR` 可指定其他非同步构建目录。尚未公证或上架 App Store。Xcode 可打开 `Package.swift` 调试。
 
-具体证据、性能样本和未测试范围见 [验证记录](docs/VALIDATION.md)。架构与阶段任务见 [架构说明](docs/ARCHITECTURE.md)。
+## 已实现
 
-## 当前限制与下一步
+| 阶段 | 当前能力 |
+| --- | --- |
+| Phase 1 | 真实 PDFKit 与 WKWebView 共存、可调三栏、PDF 坐标截图、Markdown 往返校验、离线 KaTeX 源码编辑与渲染 |
+| Phase 2 | 文件夹树、搜索排序、拖入 PDF、重命名、移动、可恢复删除；UUID 关联笔记；截图和摘录来源回跳；自动保存；Markdown 与资源打包、原生笔记 PDF 导出；菜单、工具栏、右键命令 |
+| Phase 3 | 独立批注侧文件，高亮、直线、矩形、自由绘制、临时激光笔、撤销重做、带批注 PDF 导出；多栏聚焦与整屏暗场；快捷键录制与冲突提示；Crossref / arXiv 元数据和四种参考文献格式；阅读位置恢复及最近三个 PDF 缓存 |
+| Phase 4 | Codex App Server、OpenAI 兼容云 API、本地 HTTP 推理服务接口；模型列表；流式多轮问答、停止、会话恢复；选区文字/图像与论文页上下文；来源页链接；外部学术检索；笔记差异确认、版本检查与撤销 |
 
-**Phase 1 已完成的验证范围**：PDFKit/WKWebView 共存、可调整三栏、PDF 坐标截图、支持语法的 Markdown 往返、离线 KaTeX 编辑和渲染。已扩展部分基础联动，尚未宣称完整 Phase 2 MVP。
+界面、菜单、设置、编辑器弹窗与辅助功能标签统一跟随系统语言，提供简体中文和英文，其他语言回退英文。更改系统或单应用语言后重新启动生效；论文正文、用户笔记和文献标题保持原文。工具栏根据宽度收纳操作，图标菜单不再将下拉箭头挤在图标旁。
 
-- Markdown 适配器仍属上游 beta。保证测试覆盖语法的语义一致，**不保证源文件空白、列表符号等逐字节不变**。YAML、原始 HTML 和脚注目前拒绝导入；不能安全往返的已有笔记显示为只读原文。任意 Markdown 方言仍需扩展兼容测试。
-- 图片暂不支持拖动调尺寸、远程图片下载或引用上级目录资源。导入资源必须位于所选 `.md` 的目录内；来源 sidecar 的跨文献迁移尚未实现。
-- 表格仅基础编辑，无完整行列管理面板；Mermaid 代码块可作为代码保存，尚未渲染图表。复杂 LaTeX、特别长的表格/代码行、超大图片仍需导出专项测试。
-- 没有 PDF 目录面板、密码解锁、OCR、完整文件夹树、重命名/移动/删除、独立笔记窗口或完整恢复管理界面。
-- 尚未实现 Phase 3：持久批注/绘制、激光笔、多栏感知聚焦、元数据查询、真实格式参考文献导出，以及大型论文性能优化。
-- 尚未实现 Phase 4：AI Provider、Codex App Server、云 API、流式对话、联网检索与 AI 笔记差异预览。应用中没有假聊天或占位 AI 按钮。
-- 当前未使用账户或云同步；未实现多进程同时编辑同一文献库的锁定。请只运行一个正式实例使用同一库。
+编辑器支持标题、粗斜体、删除线、`==高亮==`、列表/任务/缩进、引用、代码、表格、链接、相对图片与拖动调整显示尺寸、行内/块级公式。点击公式可重新编辑 LaTeX；Mermaid 使用离线库以严格安全模式渲染，保留可编辑源码。导出笔记 PDF 使用 WebKit 原生异步分页，等待公式、图片、图表就绪，不依赖外部排版程序。
 
-下一阶段优先补齐文件树、阅读状态精确恢复、编辑器兼容性和导出边界测试，再推进批注、多栏聚焦与 AI。
+首次体验可在“文件 / File”菜单打开示例论文。示例 PDF 本地生成，不下载第三方论文。
+
+## 阅读聚焦
+
+从阅读工具按钮或“阅读”菜单开启，默认快捷键 **Cmd+Option+F**。暗场覆盖所有连接屏幕的完整区域，包括文献树、笔记、菜单栏和 Dock；仅当前 PDF 的目标文字区域透亮。遮罩只绘制半透明黑色，不读取或录制屏幕内容，也不拦截鼠标。
+
+- 鼠标移动跟随文字行；**单击固定，↑ / ↓ 前后移动，再次单击恢复跟随**。拖动选字不触发固定。
+- 阅读顺序在同一排版带中先左栏到底，再右栏到顶；跨栏标题、公式等单独处理，邻行高亮不会同时照亮相邻栏。
+- 可设置上下行数、强度和手动栏数/当前栏。识别为启发式分析，异常排版可手动选择。
+- 滚动后不会因原高亮离开视口而关闭整个暗场；鼠标模式重新定位可见区域。锁定模式保留原行。
+- 扫描件没有 OCR 时使用区域聚焦，可手动限定栏。按 **Esc** 退出；切换到其他应用自动隐藏遮罩。
+
+## AI 配置与权限
+
+在设置的 AI 页选择 Provider：
+
+1. **Codex App Server**：使用已安装并登录的 Codex，可修改可执行文件路径；点击“读取模型”后选择。实际验证 CLI 0.167.0。本机 Codex 进程不表示本地模型推理。
+2. **云端 API**：填写 OpenAI 兼容基础地址、模型和 API Key；密钥仅保存于 macOS Keychain。要求 HTTPS。
+3. **本地 HTTP 模型**：连接已经运行的兼容服务，如 `http://127.0.0.1:11434/v1`；应用不附带模型权重或推理引擎。仅回环 HTTP 被允许。
+
+Cmd+Option+G 呼出阅读区底部输入框，Enter 发送、Shift+Enter 换行、Esc 关闭。可展开会话窗口。发送时包含当前论文和笔记的有界上下文，有选区时携带文字与 PDF 渲染图；视觉理解需要支持图像的模型。使用云端或 Codex 时这些上下文会发往所选模型服务，发送前请自行选择合适的 Provider。
+
+模型只获得明确的研究工具：`readPaper`、`getSelection`、`getPageContext`、`searchPaper`、`readNote`、`proposeNoteEdit`、`insertNoteBlock`、`searchWeb`、`getBibliography`。没有任意路径读写、Shell、外部插件或系统操作工具。Codex 启动时关闭这些能力，未知请求和权限提升请求被拒绝。
+
+AI 提议修改后，笔记保持原样；用户查看前后差异并明确应用，才进入编辑器历史。笔记已被改动时拒绝过期提议。外部检索为 **Crossref 学术出版物元数据检索**，会返回真实 DOI/URL，尚非通用网页浏览器。回答页链接可回到论文；模型的推导和公式识别仍需与原文核对。
+
+## 常用快捷键
+
+| 操作 | 默认键 |
+| --- | --- |
+| 导入 / 保存笔记 | Cmd+O / Cmd+S |
+| 截图 / 摘录 | Cmd+Option+S / Cmd+Shift+E |
+| 阅读聚焦 / 选中文字高亮 | Cmd+Option+F / Cmd+Shift+H |
+| 询问 AI | Cmd+Option+G |
+| 缩放 / 适合窗口 | Cmd+=、Cmd+- / Cmd+0 |
+| 文献库 / 笔记显隐 | Cmd+Option+1 / Cmd+Option+2 |
+| 打印 / 设置 | Cmd+P / Cmd+, |
+
+应用命令由统一 CommandRegistry 管理，设置中点击录制框，再“应用”。Delete 清除、Esc 取消；提示系统保留键与应用内冲突。Tiptap 常规文字编辑键和系统文本/窗口命令保留原行为，尚未提供逐项重映射。
+
+## 文件、备份与恢复
+
+默认库：`~/Library/Application Support/PaperReader/Library/`；可用 `PAPER_READER_LIBRARY=/absolute/path` 指定隔离库。
+
+```text
+Library/
+  library.sqlite                 可重建 SQLite 索引，WAL
+  folders.json                   文件夹组织结构
+  .Trash/<paper UUID>/           可恢复的整篇文献目录
+  <paper UUID>/
+    paper.json                   UUID、元数据、文件夹、页码/页内位置/缩放
+    paper.pdf                    导入原件的副本
+    note.md                      标准 UTF-8 Markdown
+    note.previous.md             上一个完整版本
+    note-conflict-<UUID>.md       冲突时保留自己的版本
+    sources.json                 摘录/截图来源页和 PDF 坐标
+    annotations.json             独立批注
+    conversation.json            本地对话历史
+    assets/<UUID>.png
+```
+
+截图、笔记、批注和 AI 编辑不修改原始 PDF。带批注 PDF 导出为新文件，PDFKit 注释图在独立辅助进程的主线程构建和序列化，避免阻塞阅读界面。移动外部原件不影响导入副本；重命名/整理文件夹不改变论文 UUID。
+
+350 ms 自动保存，切换/退出/导出前同步编辑器。保存使用原子替换和版本校验；每两秒检查当前笔记的外部变更，无本地待保存内容时重新载入，有冲突则保留副本并停止自动覆盖。尚无图形合并器：在 Finder 比较冲突文件、合并后重新打开论文。退出后可用 `note.previous.md` 恢复上一版本。
+
+备份应退出应用后复制整个 Library。丢失 SQLite 索引可由 `paper.json` 重建；不要删掉 manifest。文献树菜单可恢复应用回收站中的论文。笔记导出生成含 `.md`、相对资源和来源索引的目录，不复制论文 PDF。`paperreader://` 来源链接需要本应用和对应文献索引。
+
+## 验证与限制
+
+运行 `./scripts/test.sh`，在隔离临时库中执行 13 项 Swift 测试、11 项编辑器测试，以及中英文各 47 项真实原生/WKWebView 集成检查；并运行依赖审计。`PAPER_READER_LIVE_TESTS=1 ./scripts/test.sh` 额外连接真实 Crossref 与已登录 Codex，发送的仅为合成测试文档。详见 [验证记录](docs/VALIDATION.md) 和 [架构](docs/ARCHITECTURE.md)。
+
+本版的明确边界：
+
+- Markdown 保证已支持语法的语义往返，不保证空白和列表符号逐字节一致。上游官方 Markdown 适配器仍为 beta。YAML、原始 HTML、脚注拒绝导入；不可安全转换的笔记以只读原文保护。
+- 不下载远程图片；导入资源限制在所选 Markdown 目录内。图片显示尺寸存于标准图片 title 中，其他编辑器可能忽略尺寸。来源侧文件跨文献迁移尚未实现。
+- 独立笔记窗口为只读查看；表格是基础编辑。超长表格、极宽代码、复杂公式和所有 Mermaid 类型尚未全面验收。
+- 不含 OCR、加密 PDF 解锁、通用网页检索或 OpenAlex 适配器。扫描件只做区域聚焦。多栏识别不保证任意复杂版式都准确。
+- 云 API 已用真实本地 HTTP/SSE 服务验证协议，尚未使用用户云密钥做实际供应商验收；真实 Codex 的文字生成、模型列表和图像理解已验证。
+- 尚未覆盖百页扫描件、海量文献库、Intel/旧系统、多显示器热插拔的人工验收、断电/磁盘耗尽及多个进程同时编辑同一库。请只用一个正式实例打开同一库。
+- 未公证、未上架；没有把单次示例打开速度当成所有论文首屏一秒内的承诺。
 
 ## 依赖与许可证
 
-| 依赖 | 固定版本 | 许可证 / 用途 |
+| 依赖 | 版本 | 许可证 |
 | --- | --- | --- |
-| Tiptap core、StarterKit 及使用的扩展 | 3.33.0 | MIT，编辑器与 ProseMirror 集成 |
-| `@tiptap/markdown` | 3.33.0 | MIT，官方 Markdown 解析/序列化，beta |
-| KaTeX | 0.18.10 | MIT，使用数学扩展声明支持且未弃用的版本 |
-| esbuild | 0.28.2 | MIT，构建工具 |
-| jsdom | 27.4.0 | MIT，仅测试 |
-| PDFKit / WebKit / SQLite | 系统 SDK | Apple 系统框架 / 系统 SQLite，无额外下载 |
+| Tiptap 及使用的扩展、官方 Markdown 适配器 | 3.33.0 | MIT |
+| KaTeX | 0.18.10 | MIT |
+| Mermaid | 12.3.0 | MIT |
+| esbuild / jsdom（开发测试） | 0.28.2 / 27.4.0 | MIT |
+| PDFKit / WebKit / SQLite | 系统提供 | Apple SDK / SQLite 公有领域 |
 
-引入前检查了 npm 包许可证、最近维护信息、peerDependencies 和实际安装源码中的 API。本次 npm 审计无已知漏洞。第三方许可证随应用保存在 `Editor/THIRD-PARTY-NOTICES.txt`；源代码和离线产物均保留，可复现构建。运行编辑器不请求 CDN 或远程字体，资源请求由受限的本地 URL scheme 提供。
+依赖引入前检查了许可证、维护信息、实际源码 API 与运行时要求；当前 npm 审计无已知漏洞。许可证随包保存在 `Editor/THIRD-PARTY-NOTICES.txt`，编辑器 JS、CSS、公式字体、图表渲染库全部离线打包。
 
-API 依据：[Tiptap Markdown](https://tiptap.dev/docs/editor/markdown/getting-started/installation)、[Tiptap Mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics)、[Apple PDFPage](https://developer.apple.com/documentation/pdfkit/pdfpage)、[Apple WebKit 打印](https://developer.apple.com/documentation/webkit/wkwebview/printoperation(with:))。异步打印行为另参考了 [WebKit 官方实现](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/mac/WKPrintingView.mm)。
+API 依据：[Tiptap Markdown](https://tiptap.dev/docs/editor/markdown/getting-started/installation)、[Tiptap Mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics)、[Mermaid](https://mermaid.js.org/config/usage)、[Apple PDFPage](https://developer.apple.com/documentation/pdfkit/pdfpage)、[WebKit 原生打印](https://developer.apple.com/documentation/webkit/wkwebview/printoperation(with:))、[Codex App Server](https://learn.chatgpt.com/docs/app-server)、[Crossref](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)、[arXiv API](https://info.arxiv.org/help/api/index.html)。

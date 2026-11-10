@@ -162,4 +162,68 @@ public actor LibraryStore {
         }
     }
 
+    public func folders() throws -> [LibraryFolder] {
+        let url = root.appendingPathComponent("folders.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return try decoder.decode([LibraryFolder].self, from: Data(contentsOf: url))
+    }
+    public func saveFolders(_ folders: [LibraryFolder]) throws {
+        let ids = Set(folders.map(\.id))
+        for folder in folders {
+            var visited: Set<UUID> = [folder.id]
+            var parent = folder.parentID
+            while let id = parent {
+                guard ids.contains(id), visited.insert(id).inserted else { throw LibraryError.invalidPath }
+                parent = folders.first(where: { $0.id == id })?.parentID
+            }
+        }
+        try encoder.encode(folders).write(to: root.appendingPathComponent("folders.json"), options: .atomic)
+    }
+    public func trash(_ id: UUID) throws {
+        let trash = root.appendingPathComponent(".Trash", isDirectory: true)
+        try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: directory(id), to: trash.appendingPathComponent(id.uuidString))
+        guard let db else { return }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(db, "DELETE FROM papers WHERE id=?", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, id.uuidString, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        sqlite3_step(statement)
+    }
+    public func trashedPapers() throws -> [Paper] {
+        let folder = root.appendingPathComponent(".Trash")
+        guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil).compactMap {
+            guard let data = try? Data(contentsOf: $0.appendingPathComponent("paper.json")) else { return nil }
+            return try? decoder.decode(Paper.self, from: data)
+        }
+    }
+    public func restore(_ id: UUID) throws -> Paper {
+        try FileManager.default.moveItem(at: root.appendingPathComponent(".Trash/\(id.uuidString)"), to: directory(id))
+        let paper = try decoder.decode(Paper.self, from: Data(contentsOf: directory(id).appendingPathComponent("paper.json")))
+        try index(paper); return paper
+    }
+    public func annotations(_ id: UUID) throws -> [PaperAnnotation] {
+        let url = directory(id).appendingPathComponent("annotations.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return try decoder.decode([PaperAnnotation].self, from: Data(contentsOf: url))
+    }
+    public func saveAnnotations(_ id: UUID, records: [PaperAnnotation]) throws {
+        try encoder.encode(records).write(to: directory(id).appendingPathComponent("annotations.json"), options: .atomic)
+    }
+    public func readSidecar(_ id: UUID, name: String) throws -> Data? {
+        guard ["conversation.json"].contains(name) else { throw LibraryError.invalidPath }
+        let url = directory(id).appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
+    }
+    public func saveSidecar(_ id: UUID, name: String, data: Data) throws {
+        guard ["conversation.json"].contains(name) else { throw LibraryError.invalidPath }
+        try data.write(to: directory(id).appendingPathComponent(name), options: .atomic)
+    }
+
+    public func persistReading(_ id: UUID, page: Int, scale: Double, point: PDFPoint?) throws {
+        var paper = try decoder.decode(Paper.self, from: Data(contentsOf: directory(id).appendingPathComponent("paper.json")))
+        paper.page = page; paper.scale = scale; paper.readingPoint = point; try persist(paper)
+    }
+
 }

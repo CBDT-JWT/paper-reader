@@ -5,6 +5,9 @@ public struct Paper: Codable, Identifiable, Sendable, Equatable {
     public var title: String
     public let importedAt: Date
     public var page: Int
+    public var folderID: UUID?
+    public var readingPoint: PDFPoint?
+    public var metadata: Bibliography?
     public var scale: Double
     public init(id: UUID = UUID(), title: String, importedAt: Date = .now, page: Int = 0, scale: Double = 0) {
         self.id = id; self.title = title; self.importedAt = importedAt; self.page = page; self.scale = scale
@@ -42,12 +45,12 @@ public enum LibraryError: LocalizedError {
     case database(String), invalidPDF, missingPaper, externalChange, invalidPath, oversizedImage
     public var errorDescription: String? {
         switch self {
-        case .database(let message): return "数据库错误：\(message)"
-        case .invalidPDF: return "无法读取这个 PDF 文件。"
-        case .missingPaper: return "找不到论文文件。"
-        case .externalChange: return "笔记已被其他程序修改。你的编辑已保存在冲突副本中，请重新打开论文以读取外部版本。"
-        case .invalidPath: return "资源路径不在允许的目录内。"
-        case .oversizedImage: return "截图区域过大，请选择较小区域。"
+        case .database(let message): return L("数据库错误：\(message)")
+        case .invalidPDF: return L("无法读取这个 PDF 文件。")
+        case .missingPaper: return L("找不到论文文件。")
+        case .externalChange: return L("笔记已被其他程序修改。你的编辑已保存在冲突副本中，请重新打开论文以读取外部版本。")
+        case .invalidPath: return L("资源路径不在允许的目录内。")
+        case .oversizedImage: return L("截图区域过大，请选择较小区域。")
         }
     }
 }

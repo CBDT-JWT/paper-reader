@@ -4,6 +4,7 @@ public struct Paper: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
     public var title: String
     public var fileName: String?
+    public var sourceRelativePath: String?
     public var displayFileName: String { fileName ?? (title.lowercased().hasSuffix(".pdf") ? title : title + ".pdf") }
     public let importedAt: Date
     public var page: Int
@@ -44,9 +45,14 @@ public struct NoteSnapshot: Sendable {
 }
 
 public enum LibraryError: LocalizedError {
+    case invalidWorkspace, notCloudFolder, workspaceDownloading, nonEmptyFolder
     case database(String), invalidPDF, missingPaper, externalChange, invalidPath, oversizedImage, invalidName
     public var errorDescription: String? {
         switch self {
+        case .invalidWorkspace: return L("工作区文献信息不完整或已损坏，请检查 .paper-reader 中的 paper.json。")
+        case .notCloudFolder: return L("请选择 iCloud Drive 中的文件夹。普通本地文件夹不会自动同步到 iCloud。")
+        case .workspaceDownloading: return L("iCloud 文件正在下载或暂不可用，请联网后稍候重试。")
+        case .nonEmptyFolder: return L("原始文件夹不是空的。请先移动其中的文件，或在 Finder 中管理。")
         case .database(let message): return L("数据库错误：\(message)")
         case .invalidPDF: return L("无法读取这个 PDF 文件。")
         case .missingPaper: return L("找不到论文文件。")

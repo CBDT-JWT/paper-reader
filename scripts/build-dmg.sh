@@ -10,7 +10,7 @@ if [[ ! -x "$VENV/bin/dmgbuild" ]]; then
 fi
 mkdir -p build/release
 OUTPUT="$PWD/build/release/PaperReader-$VERSION-arm64.dmg"
-"$VENV/bin/dmgbuild" -s scripts/release/dmg-settings.py -D app="$APP" "Paper Reader" "$OUTPUT"
+"$VENV/bin/dmgbuild" -s scripts/release/dmg-settings.py -D app="$APP" -D project_root="$PWD" "Paper Reader" "$OUTPUT"
 if [[ -n "${PAPER_READER_SIGN_IDENTITY:-}" ]]; then
   codesign --force --timestamp --sign "$PAPER_READER_SIGN_IDENTITY" "$OUTPUT"
 fi

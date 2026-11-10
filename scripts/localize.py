@@ -54,6 +54,7 @@ for path in list((root/'Sources/PaperReader').glob('*.swift'))+list((root/'Sourc
         if path.parent.name=='PaperReader' and 'import PaperCore' not in result:result='import PaperCore\n'+result
         path.write_text(result)
 missing=sorted(keys-translations.keys())
+(root/'build').mkdir(exist_ok=True)
 (root/'build/localization-missing.json').write_text(json.dumps(missing,ensure_ascii=False,indent=2))
 all_values={key:translations.get(key,key) for key in sorted(keys)}
 resources=root/'Sources/PaperCore/Resources'

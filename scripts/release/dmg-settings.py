@@ -1,5 +1,5 @@
 from pathlib import Path
-root=Path(__file__).resolve().parents[2]
+root=Path(defines["project_root"]).resolve()
 application=defines['app']
 files=[application]
 symlinks={'Applications':'/Applications'}

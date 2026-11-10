@@ -38,6 +38,7 @@
 "修改前" = "Before";
 "修改后" = "After";
 "修改后立即用于菜单栏、工具栏与右键菜单。Cmd+P 保留为打印。" = "Changes apply to menus, toolbars, and context menus. Cmd+P remains Print.";
+"倒序排列" = "Reverse order";
 "停止生成" = "Stop generating";
 "允许外部学术检索" = "Allow external scholarly search";
 "全屏暗场聚焦" = "Full-screen reading focus";
@@ -48,6 +49,8 @@
 "卷" = "Volume";
 "发生保存冲突 · 编辑已有副本" = "Save conflict · Your edits have been preserved";
 "取消" = "Cancel";
+"名称" = "Name";
+"名称不能为空，也不能包含斜杠或换行。" = "Enter a name without slashes or line breaks.";
 "图片或字体尚未加载完成，请检查笔记资源后重试。" = "Images or fonts have not finished loading. Check the note’s assets and try again.";
 "在 Finder 中显示文件" = "Show files in Finder";
 "块级公式" = "Block equation";
@@ -58,7 +61,9 @@
 "导入" = "Import";
 "导入 Markdown…" = "Import Markdown…";
 "导入 PDF" = "Import PDF";
+"导入 PDF 到此文件夹…" = "Import PDFs into this folder…";
 "导入 PDF…" = "Import PDF…";
+"导入时间" = "Import date";
 "导出 Markdown 与资源…" = "Export Markdown and assets…";
 "导出包含 note.md 和 assets 的独立文件夹" = "Export a separate folder containing note.md and assets";
 "导出带批注的 PDF…" = "Export annotated PDF…";
@@ -70,6 +75,8 @@
 "工具调用次数已达到限制，请缩小问题范围。" = "The tool-call limit was reached. Ask a more focused question.";
 "已保存到本机" = "Saved on this Mac";
 "已停止生成" = "Generation stopped";
+"已展开" = "Expanded";
+"已折叠" = "Collapsed";
 "已读取 %@ 个模型" = "Loaded %@ models";
 "年份" = "Year";
 "应用" = "Apply";
@@ -94,9 +101,11 @@
 "找不到论文文件。" = "The paper file could not be found.";
 "找到候选文献，请在文献信息中确认。" = "A candidate publication was found. Review it in Paper information.";
 "拒绝" = "Reject";
+"拖入 PDF 或将论文移动到此处" = "Drop PDFs or move papers here";
+"拖入 PDF，或新建文件夹整理文献。" = "Drop PDFs or create a folder to organize papers.";
 "拖动框选 PDF 区域 · Esc 取消" = "Drag to capture a PDF region · Esc to cancel";
 "按下快捷键…" = "Press shortcut…";
-"按标题排序" = "Sort by title";
+"排序方式" = "Sort by";
 "插入图片" = "Insert image";
 "插入图片…" = "Insert image…";
 "插入表格" = "Insert table";
@@ -111,6 +120,7 @@
 "放大" = "Zoom in";
 "数据库错误：%@" = "Database error: %@";
 "整屏变暗。单击锁定阅读行，↑/↓移动；再次单击跟随鼠标。Esc 退出。" = "Dim every screen. Click to pin a line, use ↑/↓ to move, and click again to follow the mouse. Esc exits.";
+"文件名" = "Filename";
 "文献信息" = "Paper information";
 "文献信息与引用…" = "Paper information and citations…";
 "文献信息已更新" = "Paper information updated";
@@ -180,6 +190,8 @@
 "缩小" = "Zoom out";
 "联网搜索未获授权。" = "External search is not enabled.";
 "联网检索使用 Crossref 的真实出版物信息。笔记修改始终需要差异确认。API Key 仅保存在 macOS Keychain。" = "Search retrieves real publications from Crossref. Note changes always require diff approval. API keys are stored only in macOS Keychain.";
+"聚焦" = "Focus";
+"聚焦设置" = "Focus settings";
 "自动识别" = "Detect automatically";
 "自动识别不准时可手动指定栏。扫描 PDF 暂无 OCR。" = "Choose a column manually if detection is inaccurate. OCR is not available for scanned PDFs.";
 "自由绘制" = "Freehand drawing";

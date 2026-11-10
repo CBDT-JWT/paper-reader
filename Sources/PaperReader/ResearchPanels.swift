@@ -54,7 +54,7 @@ struct ReadingToolsPanel: View {
             }
             HStack { Button(L("撤销批注")) { model.commands.run(.undoAnnotation) }; Button(L("重做批注")) { model.commands.run(.redoAnnotation) } }
             Divider()
-            Toggle(L("全屏暗场聚焦"), isOn: $focus.enabled)
+            Text(L("聚焦设置")).font(Design.body).fontWeight(.medium)
             Text(L("整屏变暗。单击锁定阅读行，↑/↓移动；再次单击跟随鼠标。Esc 退出。")).font(.system(size: 12)).foregroundStyle(.secondary)
             Stepper(L("上方行数：\(focus.above)"), value: $focus.above, in: 0...10)
             Stepper(L("下方行数：\(focus.below)"), value: $focus.below, in: 0...10)

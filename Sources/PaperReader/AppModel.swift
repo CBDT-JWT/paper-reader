@@ -9,6 +9,14 @@ import PaperCore
     let editor: EditorController
     let commands: CommandRegistry
     let ai: AIController
+    @Published var libraryNameRequest: LibraryNameRequest?
+    @Published var activeFolderID: UUID?
+    @Published var librarySort = LibrarySort(rawValue: UserDefaults.standard.string(forKey: "library.sort") ?? "filename") ?? .filename {
+        didSet { UserDefaults.standard.set(librarySort.rawValue, forKey: "library.sort") }
+    }
+    @Published var librarySortAscending = UserDefaults.standard.object(forKey: "library.sortAscending") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(librarySortAscending, forKey: "library.sortAscending") }
+    }
     @Published var folders: [LibraryFolder] = []
     @Published var metadataPresented = false
     @Published var metadataCandidates: [UUID: Bibliography] = [:]
@@ -33,7 +41,7 @@ import PaperCore
     private var stateDebounce: Task<Void, Never>?
     private var selectionToken = UUID()
     var currentPaper: Paper? { papers.first { $0.id == selectedID } }
-    var filteredPapers: [Paper] { query.isEmpty ? papers : papers.filter { $0.title.localizedCaseInsensitiveContains(query) } }
+    var filteredPapers: [Paper] { query.isEmpty ? papers : papers.filter { $0.title.localizedCaseInsensitiveContains(query) || $0.displayFileName.localizedCaseInsensitiveContains(query) } }
     static var defaultRoot: URL {
         if let path = ProcessInfo.processInfo.environment["PAPER_READER_LIBRARY"] { return URL(fileURLWithPath: path, isDirectory: true) }
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PaperReader/Library", isDirectory: true)
@@ -82,12 +90,12 @@ import PaperCore
             reader.onStateChange = nil
             try await reader.load(url: store.pdfURL(id), page: paper.page, scale: paper.scale, readingPoint: paper.readingPoint)
             guard token == selectionToken else { return }
-            selectedID = id; revisions[id] = snapshot.revision; blocked.remove(id)
+            selectedID = id; activeFolderID = paper.folderID; revisions[id] = snapshot.revision; blocked.remove(id)
             try await editor.setDocument(id: id, markdown: snapshot.markdown)
             try await reader.annotations.load(id)
             await ai.load(id)
             commands.hasPaper = true
-            UserDefaults.standard.set(id.uuidString, forKey: "lastPaper")
+            if !ProcessInfo.processInfo.arguments.contains("--self-test") { UserDefaults.standard.set(id.uuidString, forKey: "lastPaper") }
             status = L("已保存到本机")
         } catch { self.error = error.localizedDescription }
         guard token == selectionToken else { return }
@@ -95,7 +103,7 @@ import PaperCore
         isOpening = false
     }
     @discardableResult
-    func importPDFs(_ urls: [URL]) async -> [Paper] {
+    func importPDFs(_ urls: [URL], into folderID: UUID? = nil) async -> [Paper] {
         var imported: [Paper] = []
         for url in urls {
             let access = url.startAccessingSecurityScopedResource()
@@ -103,7 +111,7 @@ import PaperCore
             do {
                 let valid = await Task.detached { PDFValidation.isValid(url) }.value
                 guard valid else { throw LibraryError.invalidPDF }
-                let paper = try await store.importPDF(from: url)
+                let paper = try await store.importPDF(from: url, folderID: folderID)
                 papers.insert(paper, at: 0); imported.append(paper); await select(paper.id)
                 Task { await self.lookupMetadata(paperID: paper.id) }
             } catch { self.error = error.localizedDescription }
@@ -112,8 +120,9 @@ import PaperCore
     }
     func openPanel() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.pdf]; panel.allowsMultipleSelection = true
+        let folder = activeFolderID
         panel.begin { [weak self] response in
-            if response == .OK { Task { await self?.importPDFs(panel.urls) } }
+            if response == .OK { Task { await self?.importPDFs(panel.urls, into: folder) } }
         }
     }
     func openDemo() async {
@@ -235,7 +244,7 @@ import PaperCore
     func save() async { await synchronizeEditor(); await flush() }
     func shutdown() async {
         reader.focus.enabled = false; externalWatcher?.cancel(); await ai.finish(); await save(); await reader.annotations.flush(); stateDebounce?.cancel()
-        if let paper = currentPaper { do { try await store.persist(paper) } catch { self.error = error.localizedDescription } }
+        if let paper = currentPaper { do { try await store.persistReading(paper.id, page: paper.page, scale: paper.scale, point: paper.readingPoint) } catch { self.error = error.localizedDescription } }
     }
     func capture(page: Int, rect: PDFRect) async {
         guard let id = selectedID, !isOpening else { return }

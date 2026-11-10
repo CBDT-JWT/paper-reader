@@ -228,5 +228,18 @@
   "读取模型": "Load models",
   "已读取 %@ 个模型": "Loaded %@ models",
   "公式与图表识别需要支持视觉的模型。": "Equation and figure recognition requires a vision-capable model.",
-  "扫描页面使用区域聚焦；可手动指定阅读栏。": "Scanned page: using region focus. You can choose a reading column manually."
+  "扫描页面使用区域聚焦；可手动指定阅读栏。": "Scanned page: using region focus. You can choose a reading column manually.",
+  "倒序排列": "Reverse order",
+  "名称": "Name",
+  "名称不能为空，也不能包含斜杠或换行。": "Enter a name without slashes or line breaks.",
+  "导入 PDF 到此文件夹…": "Import PDFs into this folder…",
+  "导入时间": "Import date",
+  "已展开": "Expanded",
+  "已折叠": "Collapsed",
+  "拖入 PDF 或将论文移动到此处": "Drop PDFs or move papers here",
+  "拖入 PDF，或新建文件夹整理文献。": "Drop PDFs or create a folder to organize papers.",
+  "排序方式": "Sort by",
+  "文件名": "Filename",
+  "聚焦": "Focus",
+  "聚焦设置": "Focus settings"
 }

@@ -41,11 +41,13 @@ public actor LibraryStore {
         return records.sorted { $0.importedAt > $1.importedAt }
     }
 
-    public func importPDF(from url: URL) throws -> Paper {
+    public func importPDF(from url: URL, folderID: UUID? = nil) throws -> Paper {
+        if let folderID, try !folders().contains(where: { $0.id == folderID }) { throw LibraryError.invalidPath }
         let prefix = try FileHandle(forReadingFrom: url)
         let header = try prefix.read(upToCount: 1024) ?? Data(); try prefix.close()
         guard String(decoding: header, as: UTF8.self).contains("%PDF-") else { throw LibraryError.invalidPDF }
-        let paper = Paper(title: url.deletingPathExtension().lastPathComponent)
+        var paper = Paper(title: url.deletingPathExtension().lastPathComponent)
+        paper.fileName = url.lastPathComponent; paper.folderID = folderID
         let directory = directory(paper.id)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("assets"), withIntermediateDirectories: true)
         do {
@@ -169,6 +171,7 @@ public actor LibraryStore {
     }
     public func saveFolders(_ folders: [LibraryFolder]) throws {
         let ids = Set(folders.map(\.id))
+        guard ids.count == folders.count else { throw LibraryError.invalidPath }
         for folder in folders {
             var visited: Set<UUID> = [folder.id]
             var parent = folder.parentID

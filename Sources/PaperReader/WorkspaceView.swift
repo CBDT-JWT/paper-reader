@@ -33,6 +33,7 @@ struct WorkspaceView: View {
             .alert("Paper Reader", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
                 Button(L("好"), role: .cancel) { model.error = nil }
             } message: { Text(L(model.error ?? "")) }
+            .sheet(item: $model.libraryNameRequest) { request in LibraryNameSheet(model: model, request: request) }
             .sheet(isPresented: $model.metadataPresented) { MetadataPanel(model: model) }
     }
 }
@@ -125,15 +126,18 @@ private struct ReaderPane: View {
                 HStack(spacing: 2) { tool(.zoomOut); Text("\(Int(reader.scale * 100))%").font(Design.small).monospacedDigit().foregroundStyle(.secondary).frame(width: 44); tool(.zoomIn); tool(.fit) }.fixedSize()
                 Spacer(minLength: 8)
             }
-            tool(.quote); tool(.capture)
+            if !compact { tool(.quote) }; tool(.capture)
             FocusToggleButton(focus: reader.focus, registry: model.commands)
             Button { showTools.toggle() } label: { Image(systemName: "pencil.and.outline") }.buttonStyle(WorkspaceIconStyle()).help(L("阅读工具"))
                 .popover(isPresented: $showTools) { ReadingToolsPanel(annotations: reader.annotations, focus: reader.focus, model: model) }
             if compact {
-                Menu { ForEach([CommandID.zoomIn, .zoomOut, .fit, .outline, .metadata, .askAI]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
+                Menu {
+                    Button(L("搜索原文")) { showSearch.toggle() }
+                    ForEach([CommandID.quote, .zoomIn, .zoomOut, .fit, .outline, .metadata, .askAI]) { RegisteredCommandButton(registry: model.commands, id: $0) }
+                }
                 label: { Image(systemName: "ellipsis").frame(width: 30, height: 30) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             }
-            Button { showSearch.toggle() } label: { Image(systemName: "magnifyingglass") }.buttonStyle(WorkspaceIconStyle()).help(L("搜索原文"))
+            if !compact { Button { showSearch.toggle() } label: { Image(systemName: "magnifyingglass") }.buttonStyle(WorkspaceIconStyle()).help(L("搜索原文")) }
         }
     }
     private func tool(_ id: CommandID) -> some View {
@@ -146,8 +150,11 @@ private struct FocusToggleButton: View {
     @ObservedObject var focus: FocusController
     @ObservedObject var registry: CommandRegistry
     var body: some View {
-        Button { registry.run(.focus) } label: { Image(systemName: CommandID.focus.symbol) }
-            .buttonStyle(WorkspaceIconStyle(selected: focus.enabled))
+        Button { registry.run(.focus) } label: {
+            Label(L("聚焦"), systemImage: CommandID.focus.symbol).font(Design.body).padding(.horizontal, 9).frame(height: 30)
+                .foregroundStyle(focus.enabled ? Color.accentColor : .primary)
+                .background(focus.enabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
+        }.buttonStyle(.plain).fixedSize().accessibilityIdentifier("reader.focus")
             .help(L("全屏暗场聚焦") + (registry.shortcuts[.focus].map { " (\($0.display))" } ?? ""))
             .accessibilityLabel(L("全屏暗场聚焦"))
             .accessibilityAddTraits(focus.enabled ? [.isSelected] : [])

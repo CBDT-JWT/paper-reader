@@ -50,19 +50,19 @@ import PaperCore
             }
             return event
         }
-        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didChangeScreenNotification, NSWindow.didEndLiveResizeNotification] {
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didChangeScreenNotification, NSWindow.didEndLiveResizeNotification, NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
             geometryObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
                 let identifier = (notification.object as? NSWindow).map(ObjectIdentifier.init)
                 MainActor.assumeIsolated {
                     guard let self, let window = self.overlay.window, identifier == ObjectIdentifier(window) else { return }
-                    self.refreshMask()
+                    self.prepare(); self.refreshMask()
                 }
             })
         }
     }
     private func refreshMask() {
         let regions = overlay.screenRegions
-        screenMask.update(regions: regions, opacity: opacity, enabled: enabled && url != nil)
+        screenMask.update(regions: regions, opacity: opacity, enabled: enabled && url != nil, owner: overlay.pdfView?.window)
     }
     func load(url: URL) { generation = UUID(); self.url = url; layouts = [:]; loading = []; lastPoint = nil; keyboard = false; overlay.highlights = nil; prepare(); refreshMask() }
     func prepare() {

@@ -15,12 +15,22 @@ enum PDFServices {
     static func layout(url: URL, page index: Int) throws -> ReadingLayout {
         guard let document = PDFDocument(url: url), let page = document.page(at: index) else { throw LibraryError.invalidPDF }
         let bounds = page.bounds(for: .cropBox)
-        let selections = page.selection(for: bounds)?.selectionsByLine() ?? []
-        let lines = selections.enumerated().compactMap { index, selection -> ReadingLine? in
-            let rect = selection.bounds(for: page).intersection(bounds)
-            guard !rect.isNull, rect.width > 0, let text = selection.string, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return ReadingLine(id: index, text: text, rect: PDFRect(rect))
+        let text = (page.string ?? "") as NSString
+        let count = min(page.numberOfCharacters, text.length)
+        var glyphs: [ReadingGlyph] = []; glyphs.reserveCapacity(count)
+        var index = 0, sourceLine = 0
+        while index < count {
+            let range = text.rangeOfComposedCharacterSequence(at: index)
+            defer { index = NSMaxRange(range) }
+            guard NSMaxRange(range) <= count else { break }
+            let value = text.substring(with: range)
+            if value.contains(where: { $0.isNewline }) { sourceLine += 1 }
+            guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            var rect = CGRect.null
+            for position in range.location..<NSMaxRange(range) { rect = rect.union(page.characterBounds(at: position)) }
+            glyphs.append(.init(text: value, rect: PDFRect(rect), sourceLine: sourceLine))
         }
+        let lines = ReadingLineBuilder.lines(glyphs: glyphs, bounds: PDFRect(bounds))
         return ReadingLayout(bounds: PDFRect(bounds), lines: lines)
     }
     /// PDFKit's annotation adaptor requires main-thread construction, serialization and destruction.

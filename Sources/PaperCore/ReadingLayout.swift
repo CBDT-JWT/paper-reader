@@ -13,9 +13,14 @@ public struct ReadingLayout: Sendable {
     public var columnCount: Int
     public init(bounds: PDFRect, lines input: [ReadingLine]) {
         self.bounds = bounds
-        let widths = input.map { $0.rect.width }.sorted()
+        let clean = input.filter { $0.rect.height >= 2 && $0.rect.width >= 2 && !$0.text.contains("<latexit") }
+        // Axis labels, page numbers and author blocks must not establish the body column width.
+        let prose = clean.filter { $0.text.filter { !$0.isWhitespace }.count >= 24 && $0.rect.width > bounds.width * 0.12 }
+        let sample = prose.count >= 4 ? prose : clean.filter { $0.rect.width > bounds.width * 0.12 }
+        let widths = sample.map { $0.rect.width }.sorted()
         let typical = widths.isEmpty ? bounds.width : widths[widths.count / 2]
-        let body = input.filter { $0.rect.width < min(bounds.width * 0.66, typical * 1.3) && $0.rect.width > 8 }
+        let typicalHeight = median(sample.map { $0.rect.height }, fallback: 12)
+        let body = sample.filter { $0.rect.width < min(bounds.width * 0.66, typical * 1.3) && $0.rect.width > 8 && $0.rect.height <= typicalHeight * 1.4 }
         var groups: [[ReadingLine]] = []
         for line in body.sorted(by: { $0.rect.x < $1.rect.x }) {
             if let group = groups.indices.max(by: { overlap(line, groups[$0]) < overlap(line, groups[$1]) }), overlap(line, groups[group]) > 0.52 {
@@ -26,10 +31,14 @@ public struct ReadingLayout: Sendable {
         groups = groups.filter { $0.count >= max(2, body.count / 14) }.sorted { ($0.map { $0.rect.x }.min() ?? 0) < ($1.map { $0.rect.x }.min() ?? 0) }
         if groups.count < 2 || groups.count > 4 { groups = [] }
         columnCount = max(groups.count, 1)
-        self.lines = input.map { line in
+        self.lines = clean.map { line in
             var value = line
             if groups.isEmpty { value.column = 0 }
-            else if line.rect.width >= bounds.width * 0.66 { value.column = -1 }
+            else if line.rect.width >= bounds.width * 0.66 || groups.dropLast().enumerated().contains(where: { index, left in
+                let right = groups[index + 1]
+                let boundary = (median(left.map { $0.rect.x + $0.rect.width }, fallback: 0) + median(right.map { $0.rect.x }, fallback: bounds.width)) / 2
+                return line.rect.x < boundary - 8 && line.rect.x + line.rect.width > boundary + 8
+            }) { value.column = -1 }
             else {
                 let candidates = groups.enumerated().map { (index: $0.offset, score: overlap(line, $0.element)) }
                 let best = candidates.max { $0.score < $1.score }
@@ -83,6 +92,23 @@ public struct ReadingLayout: Sendable {
                 var line = line; line.rect = PDFRect(clipped); line.column = manualColumn; return line
             }
         }
+        if manualColumn == nil, columnCount > 1 {
+            // Adjacent font boxes can overlap vertically. Prefer the physical baseline
+            // nearest the pointer; padding a heading's box can steal the next body line.
+            let hit = available.filter { $0.rect.cgRect.contains(point.cgPoint) }.min {
+                abs($0.rect.cgRect.midY - point.y) < abs($1.rect.cgRect.midY - point.y)
+            }
+            if let hit, hit.column < 0 { available = available.filter { $0.column == hit.column } }
+            else {
+                let columns = (0..<columnCount).compactMap { column -> (Int, CGRect)? in
+                    let region = lines.filter { $0.column == column }.reduce(CGRect.null) { $0.union($1.rect.cgRect) }
+                    return region.isNull ? nil : (column, region)
+                }
+                if let column = columns.min(by: { horizontalDistance(point.x, $0.1) < horizontalDistance(point.x, $1.1) })?.0 {
+                    available = available.filter { $0.column == column }
+                }
+            }
+        }
         guard let nearest = available.min(by: { distance(point, $0.rect.cgRect) < distance(point, $1.rect.cgRect) }) else { return [] }
         let spanning = manualColumn == nil && nearest.column >= 0 ? lines.filter { $0.column < 0 } : []
         let ceiling = spanning.filter { $0.rect.y > nearest.rect.y }.map { $0.rect.y }.min() ?? .infinity
@@ -94,13 +120,18 @@ public struct ReadingLayout: Sendable {
         return Array(column[max(0, index - max(above, 0))...min(column.count - 1, index + max(below, 0))])
     }
 }
+private func median(_ values: [Double], fallback: Double) -> Double { let sorted = values.sorted(); return sorted.isEmpty ? fallback : sorted[sorted.count / 2] }
 private func overlap(_ line: ReadingLine, _ group: [ReadingLine]) -> Double {
-    group.map { other in
-        max(0, min(line.rect.x + line.rect.width, other.rect.x + other.rect.width) - max(line.rect.x, other.rect.x)) / min(line.rect.width, other.rect.width)
-    }.max() ?? 0
+    // Compare against the group's typical body extent. A centered title or figure label
+    // must not bridge otherwise separate columns through a single outlier rectangle.
+    let left = median(group.map { $0.rect.x }, fallback: 0)
+    let right = median(group.map { $0.rect.x + $0.rect.width }, fallback: 0)
+    return max(0, min(line.rect.x + line.rect.width, right) - max(line.rect.x, left)) / max(1, min(line.rect.width, right - left))
 }
 private func distance(_ point: PDFPoint, _ rect: CGRect) -> Double {
     let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
     let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
     return dx * dx * 4 + dy * dy
 }
+
+private func horizontalDistance(_ x: Double, _ rect: CGRect) -> Double { max(rect.minX - x, 0, x - rect.maxX) }

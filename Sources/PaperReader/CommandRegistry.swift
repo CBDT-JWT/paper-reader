@@ -50,7 +50,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .drawLine: "line.diagonal"
         case .drawRectangle: "rectangle"
         case .newFolder: "folder.badge.plus"
-        case .focus: "circle.dotted"
+        case .focus: "circle.lefthalf.filled"
         case .highlight: "highlighter"
         case .drawing: "pencil.tip"
         case .laser: "laser.burst"

@@ -3,45 +3,34 @@ import SwiftUI
 import PaperCore
 
 extension AppModel {
-    func promptName(title: String, initial: String = "") -> String? {
-        let alert = NSAlert(); alert.messageText = title
-        let field = NSTextField(string: initial); field.frame = NSRect(x: 0, y: 0, width: 300, height: 26)
-        alert.accessoryView = field; alert.addButton(withTitle: L("保存")); alert.addButton(withTitle: L("取消"))
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : name
+    func createFolder(parentID: UUID? = nil) { libraryNameRequest = .init(action: .newFolder(parentID), title: L("新建文件夹"), initial: "") }
+    func rename(_ paper: Paper) { libraryNameRequest = .init(action: .renamePaper(paper.id), title: L("重命名论文"), initial: paper.displayFileName) }
+    func renameFolder(_ folder: LibraryFolder) { libraryNameRequest = .init(action: .renameFolder(folder.id), title: L("重命名文件夹"), initial: folder.name) }
+    @discardableResult
+    func organizeLibrary(_ change: LibraryOrganizationChange) async -> Bool {
+        do {
+            try await store.organize(change)
+            folders = try await store.folders(); papers = try await store.papers()
+            if let activeFolderID, !folders.contains(where: { $0.id == activeFolderID }) { self.activeFolderID = nil }
+            return true
+        } catch { self.error = error.localizedDescription; return false }
     }
-    func createFolder(parentID: UUID? = nil) {
-        guard let name = promptName(title: L("新建文件夹")) else { return }
-        let folder = LibraryFolder(name: name, parentID: parentID); folders.append(folder)
-        Task { do { try await store.saveFolders(folders) } catch { self.error = error.localizedDescription } }
-    }
-    func moveFolder(_ id: UUID, to parent: UUID?) {
-        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
-        var updated = folders; updated[index].parentID = parent
-        Task { do { try await store.saveFolders(updated); folders = updated } catch { self.error = error.localizedDescription } }
-    }
-    func rename(_ paper: Paper) {
-        guard let name = promptName(title: L("重命名论文"), initial: paper.title), let index = papers.firstIndex(where: { $0.id == paper.id }) else { return }
-        papers[index].title = name; let value = papers[index]
-        Task { do { try await store.persist(value) } catch { self.error = error.localizedDescription } }
-    }
-    func renameFolder(_ folder: LibraryFolder) {
-        guard let name = promptName(title: L("重命名文件夹"), initial: folder.name), let index = folders.firstIndex(where: { $0.id == folder.id }) else { return }
-        folders[index].name = name; Task { do { try await store.saveFolders(folders) } catch { self.error = error.localizedDescription } }
-    }
-    func move(_ id: UUID, to folderID: UUID?) {
-        guard let index = papers.firstIndex(where: { $0.id == id }) else { return }
-        papers[index].folderID = folderID; let value = papers[index]
-        Task { do { try await store.persist(value) } catch { self.error = error.localizedDescription } }
-    }
-    func removeFolder(_ folder: LibraryFolder) {
-        // Delete only the organization record; move children up without touching files.
-        for index in folders.indices where folders[index].parentID == folder.id { folders[index].parentID = folder.parentID }
-        for paper in papers where paper.folderID == folder.id { move(paper.id, to: folder.parentID) }
-        folders.removeAll { $0.id == folder.id }
-        Task { do { try await store.saveFolders(folders) } catch { self.error = error.localizedDescription } }
+    func moveFolder(_ id: UUID, to parent: UUID?) { Task { await organizeLibrary(.moveFolder(id, parent)) } }
+    func move(_ id: UUID, to folderID: UUID?) { Task { await organizeLibrary(.movePaper(id, folderID)) } }
+    func removeFolder(_ folder: LibraryFolder) { Task { await organizeLibrary(.removeFolder(folder.id)) } }
+    func saveLibraryName(_ request: LibraryNameRequest, name: String) async {
+        let change: LibraryOrganizationChange
+        var newID: UUID?
+        switch request.action {
+        case .newFolder(let parent):
+            let folder = LibraryFolder(name: name, parentID: parent); newID = folder.id; change = .createFolder(folder)
+        case .renameFolder(let id): change = .renameFolder(id, name)
+        case .renamePaper(let id): change = .renamePaper(id, name)
+        }
+        if await organizeLibrary(change) {
+            libraryNameRequest = nil
+            if let newID { activeFolderID = newID }
+        }
     }
     func trashPaper(_ paper: Paper) async {
         await save(); await reader.annotations.flush()
@@ -95,14 +84,14 @@ extension AppModel {
                 metadataCandidates[id] = metadata
                 if selectedID == id { status = L("找到候选文献，请在文献信息中确认。") }; return
             }
-            papers[index].metadata = metadata; let value = papers[index]; try await store.persist(value)
+            papers[index].metadata = metadata; let value = papers[index]; try await store.persistMetadata(value.id, metadata: metadata)
             if selectedID == id { status = L("文献信息已更新") }
         } catch { status = error.localizedDescription }
     }
     func updateMetadata(_ metadata: Bibliography) async {
         guard let id = selectedID, let index = papers.firstIndex(where: { $0.id == id }) else { return }
         papers[index].metadata = metadata; metadataCandidates.removeValue(forKey: id); let value = papers[index]
-        do { try await store.persist(value) } catch { self.error = error.localizedDescription }
+        do { try await store.persistMetadata(value.id, metadata: metadata) } catch { self.error = error.localizedDescription }
     }
     func runResearchCommand(_ command: CommandID) -> Bool {
         switch command {

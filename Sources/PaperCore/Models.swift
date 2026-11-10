@@ -3,6 +3,8 @@ import Foundation
 public struct Paper: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
     public var title: String
+    public var fileName: String?
+    public var displayFileName: String { fileName ?? (title.lowercased().hasSuffix(".pdf") ? title : title + ".pdf") }
     public let importedAt: Date
     public var page: Int
     public var folderID: UUID?
@@ -42,13 +44,14 @@ public struct NoteSnapshot: Sendable {
 }
 
 public enum LibraryError: LocalizedError {
-    case database(String), invalidPDF, missingPaper, externalChange, invalidPath, oversizedImage
+    case database(String), invalidPDF, missingPaper, externalChange, invalidPath, oversizedImage, invalidName
     public var errorDescription: String? {
         switch self {
         case .database(let message): return L("数据库错误：\(message)")
         case .invalidPDF: return L("无法读取这个 PDF 文件。")
         case .missingPaper: return L("找不到论文文件。")
         case .externalChange: return L("笔记已被其他程序修改。你的编辑已保存在冲突副本中，请重新打开论文以读取外部版本。")
+        case .invalidName: return L("名称不能为空，也不能包含斜杠或换行。")
         case .invalidPath: return L("资源路径不在允许的目录内。")
         case .oversizedImage: return L("截图区域过大，请选择较小区域。")
         }

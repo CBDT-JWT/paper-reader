@@ -1,6 +1,10 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.2.1 版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.3.0 开发预览版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+
+官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
+
+0.3.0 新增 Sparkle 在线更新接口、应用菜单“检查更新”和自动检查设置、拖拽安装 DMG、双语官网及可重复的发布流程。**正式 Developer ID 签名和 Apple 公证仍需开发者账号配置；预览包不进入正式更新源。** 发布操作和凭证边界见 [发布文档](docs/RELEASING.md)，本轮实际测试与跳过项见 [0.3.0 验证记录](docs/RELEASE_VALIDATION.md)。
 
 ## 本轮交互修复
 
@@ -16,7 +20,7 @@ macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit
 
 ## 构建和运行
 
-需要 macOS 14+、Xcode（Swift 6）及 Python 3。本次实测 Apple Silicon、macOS 27.3、Xcode 27、Swift 6.4；Intel 和旧系统尚未实测。
+需要 macOS 14+、Xcode（Swift 6）及 Python 3。首次构建需联网解析并下载锁定的 Sparkle 2.10.1（MIT），后续正常使用不依赖 CDN。本次实测 Apple Silicon、macOS 27.3、Xcode 27、Swift 6.4；Intel 和旧系统尚未实测。
 
 ```sh
 ./scripts/build-app.sh
@@ -35,7 +39,7 @@ cd ..
 
 打包脚本在存在 `WebEditor/node_modules` 时自动重建前端。依赖版本锁定于 `package-lock.json`。
 
-构建与 ad-hoc 签名位于 `~/Library/Caches/PaperReader/Build/`，避免同步目录的 Finder 属性破坏签名。`build/Paper Reader.app` 为启动软链接；便携包为 **`build/PaperReader-macOS.zip`**，解压后可拖入 Applications。使用 `PAPER_READER_BUILD_DIR` 可指定其他非同步构建目录。尚未公证或上架 App Store。Xcode 可打开 `Package.swift` 调试。
+构建与 ad-hoc 签名位于 `~/Library/Caches/PaperReader/Build/`，避免同步目录的 Finder 属性破坏签名。`build/Paper Reader.app` 为启动软链接；便携包为 **`build/PaperReader-macOS.zip`**，解压后可拖入 Applications。使用 `PAPER_READER_BUILD_DIR` 可指定其他非同步构建目录。开发构建为 ad-hoc 签名，尚未完成 Developer ID 签名/公证，也未上架 App Store。`scripts/build-dmg.sh` 可制作带背景的 Applications 拖拽安装包。Xcode 可打开 `Package.swift` 调试。
 
 ## 已实现
 

@@ -1,0 +1,19 @@
+from pathlib import Path
+root=Path(__file__).resolve().parents[2]
+application=defines['app']
+files=[application]
+symlinks={'Applications':'/Applications'}
+background=str(root/'assets/dmg/background.tiff')
+icon=str(root/'assets/AppIcon.icns')
+icon_locations={'Paper Reader.app':(210,242),'Applications':(550,242)}
+window_rect=((150,150),(760,460))
+default_view='icon-view'
+icon_size=108
+text_size=14
+show_status_bar=False
+show_tab_view=False
+show_toolbar=False
+show_pathbar=False
+show_sidebar=False
+arrange_by=None
+format='UDZO'

@@ -4,3 +4,12 @@ WebEditor/node_modules/
 .DS_Store
 *.xcuserstate
 .swiftpm/
+output/
+.playwright-cli/
+*.p12
+*.p8
+*.key
+.env
+.env.*
+__pycache__/
+*.pyc

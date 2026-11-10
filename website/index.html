@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper Reader — 读懂论文，留下理解</title>
+<meta name="description" content="面向科研人员的 macOS 原生论文阅读与 Markdown 笔记工作台。PDF、来源截图、多栏聚焦和 AI，在同一处工作。">
+<link rel="canonical" href="https://www.weitao-jiang.cn/paper-reader/">
+<meta property="og:title" content="Paper Reader — Your research, in context."><meta property="og:description" content="Native PDF reading. Linked Markdown notes. A little space for your next insight."><meta property="og:image" content="https://www.weitao-jiang.cn/paper-reader/assets/workspace.png"><meta property="og:type" content="website">
+<link rel="icon" href="assets/icon.png"><link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">跳到正文</a>
+<header class="nav wrap"><a class="brand" href="./"><img src="assets/icon.png" alt="" width="40" height="40"><span>Paper Reader</span></a><nav aria-label="Main navigation"><a href="#workflow" data-i18n="navWorkflow">工作方式</a><a href="https://github.com/CBDT-JWT/paper-reader">GitHub <span aria-hidden="true">↗</span></a><button id="language" aria-label="Switch language">EN</button><a class="nav-download" href="#download" data-i18n="navDownload">下载</a></nav></header>
+<main id="main">
+<section class="hero wrap">
+<div class="eyebrow"><span class="dot"></span><span data-i18n="eyebrow">为 macOS 而生的科研阅读工作台</span></div>
+<div class="hero-grid"><h1 data-i18n="title">读懂一篇论文，<br>留下一份理解。</h1><div class="hero-aside"><p data-i18n="intro">把原文、笔记与思考放在一起。<br>少一点来回切换，多一点深入理解。</p><p class="byline" data-i18n="byline">为日常科研，做一件顺手的工具。</p></div></div>
+<div class="hero-actions"><a class="button primary download-link" href="https://github.com/CBDT-JWT/paper-reader/releases" data-i18n="download">下载 macOS 预览版 <span aria-hidden="true">↓</span></a><span class="requirements" data-i18n="requirements">Apple Silicon · macOS 14 或更新版本</span></div>
+<div class="product-frame"><img id="workspace" src="assets/workspace.png" alt="Paper Reader 的真实示例界面：左侧文献树、中央双栏 PDF、右侧关联 Markdown 笔记" width="2880" height="1640" fetchpriority="high"></div>
+<div class="caption"><span>01 / YOUR RESEARCH, IN CONTEXT</span><span data-i18n="caption">真实应用界面 · 本地生成的示例论文</span></div>
+</section>
+<section id="workflow" class="workflow wrap section">
+<div class="section-intro"><span class="eyebrow" data-i18n="workflowLabel">从阅读，到理解</span><h2 data-i18n="workflowTitle">让思路连起来。</h2><p data-i18n="workflowIntro">保留熟悉的阅读与写作习惯，把重复的整理交给工作台。</p></div>
+<div class="feature-list">
+<article><span class="number">01</span><h3 data-i18n="readTitle">专心读，逐行读。</h3><p data-i18n="readCopy">整屏暗场收起干扰，只照亮当前栏的文字。点击固定一行，用上下箭头继续阅读，再点一下回到鼠标跟随。</p><span class="detail" data-i18n="readDetail">多栏感知 · 可调范围 · 全屏支持</span></article>
+<article><span class="number">02</span><h3 data-i18n="noteTitle">想到，就写下来。</h3><p data-i18n="noteCopy">一篇论文，一份关联笔记。即时 Markdown 编辑、可重编辑的公式、表格与图表，让记录自然跟上思考。</p><span class="detail" data-i18n="noteDetail">离线 KaTeX · 自动保存 · PDF 导出</span></article>
+<article><span class="number">03</span><h3 data-i18n="sourceTitle">每一处摘录，都有来处。</h3><p data-i18n="sourceCopy">直接从 PDF 高清渲染截图，插入当前笔记。页码与坐标一起保留，点击来源，就回到当时看到的证据。</p><span class="detail" data-i18n="sourceDetail">原文引用 · 高清截图 · 来源回跳</span></article>
+</div>
+</section>
+<section class="evidence"><div class="wrap evidence-grid"><div><span class="eyebrow" data-i18n="aiLabel">在上下文中，继续追问</span><h2 data-i18n="aiTitle">读不懂的地方，<br>就地展开。</h2></div><div class="evidence-copy"><p data-i18n="aiCopy">带着选区、当前论文和笔记向 AI 提问。把公式讲清楚，把方法理顺，或为笔记提出修改。</p><p data-i18n="aiSafety">修改先预览差异，由你确认后应用，并且可以撤销。模型服务由你选择：Codex、兼容云端 API，或本机运行的兼容推理服务。</p><p class="fine" data-i18n="aiFine">AI 为可选功能。联网服务会接收所选论文与笔记的上下文；本机 Codex 进程不代表离线模型。回答仍需核查。</p></div></div></section>
+<section class="local wrap section"><div class="local-heading"><span class="eyebrow" data-i18n="localLabel">LOCAL FIRST</span><h2 data-i18n="localTitle">你的研究，<br>留在你的文件里。</h2></div><div class="local-body"><p class="lead" data-i18n="localCopy">原始 PDF 保持原样。笔记是普通的 Markdown，图片独立存放，关联索引保存在本地。无需账户，也能完成阅读和记录。</p><div class="file-row"><span class="file-extension">.pdf</span><div><h3 data-i18n="filePDF">原文始终保留</h3><p data-i18n="filePDFCopy">批注独立保存，可另外导出含批注的副本。</p></div></div><div class="file-row"><span class="file-extension">.md</span><div><h3 data-i18n="fileMD">笔记可以带走</h3><p data-i18n="fileMDCopy">标准文件与相对资源路径，方便访问、迁移和备份。</p></div></div><a class="text-link" href="https://github.com/CBDT-JWT/paper-reader#readme" data-i18n="docs">查看功能与使用说明 ↗</a></div></section>
+<section id="download" class="download-section"><div class="wrap download-grid"><img src="assets/icon.png" alt="Paper Reader app icon" width="112" height="112" loading="lazy"><div><span class="eyebrow" data-i18n="downloadLabel">给下一篇论文，留一点空间</span><h2 data-i18n="downloadTitle">从下一次阅读开始。</h2><p id="release-status" class="release-status" aria-live="polite" data-i18n="pending">预览版准备中。正式签名与 Apple 公证尚未完成。</p><div class="download-actions"><a class="button primary download-link" href="https://github.com/CBDT-JWT/paper-reader/releases" data-i18n="download">下载 macOS 预览版 ↓</a><a class="text-link" href="https://github.com/CBDT-JWT/paper-reader/releases" data-i18n="releaseNotes">版本记录 ↗</a></div><p class="fine" data-i18n="install">打开 DMG，将 Paper Reader 拖入 Applications。应用内可检查后续更新。</p><p class="fine" id="checksum"></p></div></div></section>
+</main><footer class="wrap footer"><span>Paper Reader <span class="footer-by">by <a href="https://www.weitao-jiang.cn/">Weitao Jiang</a></span></span><div><a href="https://github.com/CBDT-JWT/paper-reader/issues" data-i18n="feedback">反馈问题</a><a href="https://github.com/CBDT-JWT/paper-reader">Source ↗</a><a href="privacy.html" data-i18n="privacy">隐私说明</a></div></footer>
+</body></html>

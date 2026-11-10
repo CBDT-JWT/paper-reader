@@ -1,0 +1,23 @@
+name: Verify build and core tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: WebEditor/package-lock.json
+      - run: npm ci
+        working-directory: WebEditor
+      - run: npm test && npm audit --omit=dev
+        working-directory: WebEditor
+      - run: swift test --scratch-path "$HOME/Library/Caches/PaperReader/Build"
+      - run: scripts/build-app.sh release
+      - run: python3 scripts/test-release.py
+      # Native window/fullscreen tests run on a real Mac with scripts/test.sh.
+      # No signing/notarization secrets or private update key are required by this workflow.

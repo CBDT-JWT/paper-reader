@@ -206,43 +206,47 @@ import PaperCore
             try check(layout.columnCount == 2, "Real PDFKit text extraction identified the fixture's two columns")
             let focusLines = layout.focused(at: .init(x: 80, y: 595), above: 1, below: 2)
             try check(!focusLines.isEmpty && focusLines.allSatisfy { $0.rect.cgRect.maxX < 310 }, "Focus window on a real PDF stays in the left column")
-            NSApp.activate(ignoringOtherApps: true); model.reader.view.window?.makeKeyAndOrderFront(nil)
-            try await eventually { NSApp.isActive }
-            if let window = model.reader.view.window { try await setFullScreen(false, window: window) }
-            model.reader.goToPage(0); model.reader.focus.enabled = true
-            try await eventually { model.reader.focus.detectedColumns == 2 }
-            try check(model.reader.focus.overlay.highlights?.1.isEmpty == false, "Native focus overlay uses cached line regions")
-            do { try await eventually { model.reader.focus.screenMask.coversEveryScreen } }
-            catch { print("FOCUS TEST DIAGNOSTIC: \(model.reader.focus.screenMask.diagnostic)"); throw error }
-            checks.append("Native mouse-transparent focus windows cover every connected display, including menu bar and Dock")
-            model.reader.focus.togglePin(at: .init(x: 80, y: 595), page: 0)
-            let pinned = model.reader.focus.overlay.highlights?.1
-            model.reader.focus.overlay.onMove?(.init(x: 400, y: 595), 0)
-            try check(model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1 == pinned, "Clicking pins the current PDF line against mouse movement")
-            model.reader.focus.step(1)
-            try check(model.reader.focus.overlay.highlights?.1 != pinned, "Arrow navigation advances a pinned line in reading order")
-            model.reader.focus.togglePin(at: .init(x: 400, y: 595), page: 0)
-            try check(!model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1.allSatisfy { $0.minX > 300 } == true, "Clicking again follows the mouse in the right column only")
-            model.reader.focus.keyboard = true
-            let visibleHoles = model.reader.focus.overlay.highlights
-            model.reader.focus.overlay.highlights = nil
-            model.reader.focus.overlay.onGeometryChanged?()
-            try check(model.reader.focus.screenMask.coversEveryScreen, "Dark field remains active when the pinned line is outside the viewport")
-            model.reader.focus.overlay.highlights = visibleHoles
-            model.reader.focus.overlay.onGeometryChanged?()
-            // Real macOS full-screen transitions, not a resized frame or a mocked flag.
-            let workspace = try unwrap(model.reader.view.window, "Workspace window missing")
-            try await setFullScreen(true, window: workspace)
-            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
-            checks.append("Dark field remains on the active Space after entering native full screen")
-            model.reader.focus.enabled = false
-            model.commands.run(.focus)
-            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
-            checks.append("The shared toolbar command enables dark field while already in native full screen")
-            try await setFullScreen(false, window: workspace)
-            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
-            checks.append("Dark field returns to the normal workspace after leaving native full screen")
-            model.reader.focus.enabled = false
+            if ProcessInfo.processInfo.environment["PAPER_READER_SKIP_INTERACTIVE_FOCUS"] == "1" {
+                print("SKIPPED: foreground activation and full-screen focus window checks (explicit noninteractive validation mode)")
+            } else {
+                NSApp.activate(ignoringOtherApps: true); model.reader.view.window?.makeKeyAndOrderFront(nil)
+                try await eventually { NSApp.isActive }
+                if let window = model.reader.view.window { try await setFullScreen(false, window: window) }
+                model.reader.goToPage(0); model.reader.focus.enabled = true
+                try await eventually { model.reader.focus.detectedColumns == 2 }
+                try check(model.reader.focus.overlay.highlights?.1.isEmpty == false, "Native focus overlay uses cached line regions")
+                do { try await eventually { model.reader.focus.screenMask.coversEveryScreen } }
+                catch { print("FOCUS TEST DIAGNOSTIC: \(model.reader.focus.screenMask.diagnostic)"); throw error }
+                checks.append("Native mouse-transparent focus windows cover every connected display, including menu bar and Dock")
+                model.reader.focus.togglePin(at: .init(x: 80, y: 595), page: 0)
+                let pinned = model.reader.focus.overlay.highlights?.1
+                model.reader.focus.overlay.onMove?(.init(x: 400, y: 595), 0)
+                try check(model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1 == pinned, "Clicking pins the current PDF line against mouse movement")
+                model.reader.focus.step(1)
+                try check(model.reader.focus.overlay.highlights?.1 != pinned, "Arrow navigation advances a pinned line in reading order")
+                model.reader.focus.togglePin(at: .init(x: 400, y: 595), page: 0)
+                try check(!model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1.allSatisfy { $0.minX > 300 } == true, "Clicking again follows the mouse in the right column only")
+                model.reader.focus.keyboard = true
+                let visibleHoles = model.reader.focus.overlay.highlights
+                model.reader.focus.overlay.highlights = nil
+                model.reader.focus.overlay.onGeometryChanged?()
+                try check(model.reader.focus.screenMask.coversEveryScreen, "Dark field remains active when the pinned line is outside the viewport")
+                model.reader.focus.overlay.highlights = visibleHoles
+                model.reader.focus.overlay.onGeometryChanged?()
+                // Real macOS full-screen transitions, not a resized frame or a mocked flag.
+                let workspace = try unwrap(model.reader.view.window, "Workspace window missing")
+                try await setFullScreen(true, window: workspace)
+                try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+                checks.append("Dark field remains on the active Space after entering native full screen")
+                model.reader.focus.enabled = false
+                model.commands.run(.focus)
+                try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+                checks.append("The shared toolbar command enables dark field while already in native full screen")
+                try await setFullScreen(false, window: workspace)
+                try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+                checks.append("Dark field returns to the normal workspace after leaving native full screen")
+                model.reader.focus.enabled = false
+            }
             let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 48, y: 210, width: 516, height: 128))
             model.reader.annotations.add([record]); model.reader.annotations.undo()
             try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous sidecar state")
@@ -371,7 +375,7 @@ import PaperCore
         return Double(parts.seconds) * 1000 + Double(parts.attoseconds) / 1e15
     }
     private static func writeResult(_ url: URL, success: Bool, checks: [String], metrics: [String: Double], error: String?) throws {
-        var json: [String: Any] = ["success": success, "checks": checks, "metrics": metrics, "date": ISO8601DateFormatter().string(from: .now), "os": ProcessInfo.processInfo.operatingSystemVersionString]
+        var json: [String: Any] = ["success": success, "checks": checks, "metrics": metrics, "date": ISO8601DateFormatter().string(from: .now), "os": ProcessInfo.processInfo.operatingSystemVersionString, "interactiveFocusSkipped": ProcessInfo.processInfo.environment["PAPER_READER_SKIP_INTERACTIVE_FOCUS"] == "1"]
         if let error { json["error"] = error }
         try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]).write(to: url, options: .atomic)
     }

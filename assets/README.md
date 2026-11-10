@@ -5,3 +5,9 @@
 Design prompt: a restrained native macOS icon for a research PDF and Markdown workspace, with two overlapping warm-white paper pages, a folded cobalt reading tab, charcoal strokes and one small amber highlight. No lettering, AI sparkle, brain or magnifier. Centered rounded-square tile with transparent surroundings. A second imagegen pass retained the composition and requested a cleaner outer alpha silhouette. No third-party logos or source art were used.
 
 The exact generation and edit prompts are recorded in [app-icon-prompts.txt](app-icon-prompts.txt).
+
+## Release artwork
+
+`dmg/` contains code-rendered 760×460 / Retina installer backgrounds. Regenerate using `scripts/release/dmg-background.py` (Pillow 12.0.0) and `tiffutil -cathidpicheck`. Finder supplies the actual application and Applications icons. No private paper is included in website artwork.
+
+`Sparkle-LICENSE.txt` preserves Sparkle 2.10.1 and its bundled third-party license notices. Sparkle is MIT licensed, actively maintained; pinned release verified 2026-11-10.

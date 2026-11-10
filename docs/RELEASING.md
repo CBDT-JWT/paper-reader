@@ -8,6 +8,7 @@ The current development machine has an **Apple Development** identity only. That
 ## One-time production setup
 
 1. Enroll in the Apple Developer Program. In Xcode / Apple Developer Certificates, create and install a **Developer ID Application** certificate and its private key. The key must remain in Keychain.
+   Creating a local Developer ID certificate requires the team's **Account Holder**, per [Apple's Developer ID instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/). Xcode's generic “Communication with Apple failed” can hide a role error. If you own an active individual membership, compare the Developer Account website Team ID with the selected Xcode team, and try the website certificate workflow. A CSR can be generated in Keychain Access; only the public CSR needs to go to a team holder. If the website also rejects the holder, resolve membership/account permissions with Apple Developer Support. Do not revoke working certificates as a troubleshooting shortcut.
 2. Store notarization credentials locally (the interactive command prompts securely):
    ```sh
    xcrun notarytool store-credentials PaperReader

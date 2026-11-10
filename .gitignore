@@ -1,0 +1,6 @@
+.build/
+build/
+WebEditor/node_modules/
+.DS_Store
+*.xcuserstate
+.swiftpm/

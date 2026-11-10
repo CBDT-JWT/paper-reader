@@ -1,0 +1,3 @@
+# Generated vendor bundles retain upstream license line endings and Markdown hard breaks.
+Sources/PaperReader/Resources/Editor/** -whitespace linguist-generated=true
+WebEditor/package-lock.json linguist-generated=true

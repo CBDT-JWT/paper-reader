@@ -1,0 +1,55 @@
+:root {color-scheme: light dark; --ink: #262a30; --muted: #777d86; --surface: #ffffff; --code: #f2f3f5; --accent: #3976bd; --border: #dce0e5; font-family: -apple-system, BlinkMacSystemFont, sans-serif;}
+@media (prefers-color-scheme: dark) {:root {--ink: #dce0e7; --muted: #989fa9; --surface: #202124; --code: #2b2d31; --accent: #8db8ee; --border: #45494f;}}
+* {box-sizing: border-box;}
+body {margin: 0; background: var(--surface); color: var(--ink);}
+#editor {padding: 28px 30px 100px;}
+.tiptap {outline: none; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; min-height: 70vh; caret-color: var(--accent);}
+.tiptap > :first-child {margin-top: 0;}
+h1 {font-size: 28px; line-height: 1.35; font-weight: 650; letter-spacing: -.02em; margin: 1.2em 0 .7em;}
+h2 {font-size: 22px; line-height: 1.4; margin: 1.4em 0 .5em;}
+h3 {font-size: 18px; line-height: 1.5;}
+p {margin: .7em 0;}
+a {color: var(--accent); cursor: pointer; text-decoration-thickness: .7px; text-underline-offset: 3px;}
+blockquote {border-left: 3px solid var(--border); margin: 1em 0; padding: 0 0 0 16px; color: var(--muted);}
+pre {background: var(--code); border-radius: 8px; padding: 16px; overflow-x: auto; white-space: pre; font-size: 13px;}
+code {font-family: ui-monospace, SFMono-Regular, monospace; background: var(--code); border-radius: 4px; padding: 2px 4px; font-size: .88em;}
+pre code {padding: 0; background: transparent;}
+mark {background: #f8df86; color: #272727; padding: 1px 2px; border-radius: 3px;}
+ul,ol {padding-left: 24px;}
+li > p {margin: .2em 0;}
+ul[data-type="taskList"] {list-style: none; padding-left: 0;}
+ul[data-type="taskList"] li {display: flex; gap: 8px; align-items: flex-start;}
+ul[data-type="taskList"] li label {padding-top: 5px;}
+ul[data-type="taskList"] li > div {flex: 1; min-width: 0;}
+img {max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 18px 0 8px;}
+.ProseMirror-selectednode {outline: 2px solid var(--accent); border-radius: 4px;}
+table {border-collapse: collapse; width: 100%; table-layout: fixed; margin: 18px 0; font-size: 14px;}
+td,th {border: 1px solid var(--border); padding: 6px 10px; vertical-align: top; min-width: 40px; position: relative;}
+th {background: var(--code); text-align: left; font-weight: 600;}
+.selectedCell::after {content: ''; position: absolute; inset: 0; background: #4a86c633; pointer-events: none;}
+.tiptap-mathematics-render {cursor: pointer; border-radius: 4px; padding: 2px 3px;}
+.tiptap-mathematics-render:hover {background: var(--code);}
+.tiptap-mathematics-render[data-type="block-math"] {display: block; padding: 12px 0; overflow-x: auto;}
+.katex-display {margin: 0;}
+hr {border: none; border-top: 1px solid var(--border); margin: 24px 0;}
+#math-panel {position: fixed; inset: 0; background: #0006; z-index: 10; padding: 70px 20px;}
+#math-panel[hidden] {display: none;}
+#math-form {padding: 20px; border-radius: 8px; background: var(--surface); box-shadow: 0 12px 32px #0002;}
+#math-form label {display: block; font-size: 14px; font-weight: 600; margin-bottom: 12px;}
+#math-input {width: 100%; min-height: 100px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--code); color: var(--ink); font-size: 14px; resize: vertical;}
+.actions {display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;}
+button {font: 14px -apple-system, sans-serif; border: none; border-radius: 8px; padding: 7px 14px; background: var(--code); color: var(--ink); cursor: pointer;}
+button[type="submit"] {background: #3976bd; color: white;}
+#unsupported {white-space: pre-wrap; overflow-wrap: anywhere; padding: 24px; font: 14px/1.7 ui-monospace, monospace;}
+@media print {
+  :root {color-scheme: light; --ink: #151515; --surface: white; --code: #f3f3f3; --border: #ccc; --accent: #285d94;}
+  body {background: white; color: black;}
+  #editor {padding: 0;}
+  .tiptap {font-size: 11pt; min-height: 0;}
+  h1,h2,h3 {break-after: avoid;}
+  img,pre,blockquote,tr,.tiptap-mathematics-render {break-inside: avoid;}
+  thead {display: table-header-group;}
+  #math-panel {display: none !important;}
+  a {text-decoration: none;}
+  @page {size: A4; margin: 20mm;}
+}

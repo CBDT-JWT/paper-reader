@@ -12,6 +12,9 @@ private final class LoadedPDF: @unchecked Sendable {
 @MainActor final class PDFReaderController: NSObject, ObservableObject {
     let view = ResearchPDFView()
     let capture = CaptureOverlay()
+    let annotations = AnnotationController()
+    let focus = FocusController()
+    private var position: PDFPoint?
     let sourceOverlay = SourceHighlightOverlay()
     private var highlightTask: Task<Void, Never>?
     @Published var page = 0
@@ -24,6 +27,7 @@ private final class LoadedPDF: @unchecked Sendable {
     var runCommand: ((CommandID) -> Void)?
     private var cache: [(URL, PDFDocument)] = []
     private var observers: [NSObjectProtocol] = []
+    private var scrollObserver: NSObjectProtocol?
     private var loadToken = UUID()
     override init() {
         super.init()
@@ -35,6 +39,10 @@ private final class LoadedPDF: @unchecked Sendable {
         view.command = { [weak self] in self?.runCommand?($0) }
         capture.pdfView = view
         sourceOverlay.pdfView = view
+        annotations.overlay.pdfView = view; focus.overlay.pdfView = view
+        view.focusKey = { [weak self] direction in
+            guard let self, focus.enabled, focus.keyboard else { return false }; focus.step(direction); return true
+        }
         capture.onComplete = { [weak self] page, rect in
             self?.captureMode = false; self?.onCapture?(page, rect)
         }
@@ -44,13 +52,21 @@ private final class LoadedPDF: @unchecked Sendable {
                 MainActor.assumeIsolated { self?.stateChanged() }
             })
         }
-        observers.append(NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                if self?.sourceOverlay.source != nil { self?.sourceOverlay.needsDisplay = true }
-            }
-        })
     }
-    func load(url: URL, page: Int, scale: Double) async throws {
+    private func observeScrolling() {
+        if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }
+        guard let clip = view.documentView?.enclosingScrollView?.contentView else { return }
+        clip.postsBoundsChangedNotifications = true
+        scrollObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.sourceOverlay.needsDisplay = true; self.annotations.overlay.needsDisplay = true; self.focus.overlay.needsDisplay = true
+                self.stateChanged(); self.focus.prepare()
+            }
+        }
+    }
+
+    func load(url: URL, page: Int, scale: Double, readingPoint: PDFPoint? = nil) async throws {
         let token = UUID(); loadToken = token
         let document: PDFDocument
         if let index = cache.firstIndex(where: { $0.0 == url }) {
@@ -62,19 +78,25 @@ private final class LoadedPDF: @unchecked Sendable {
             if cache.count > 3 { cache.removeFirst() }
         }
         sourceOverlay.source = nil; highlightTask?.cancel()
-        view.document = document; pageCount = document.pageCount
+        view.document = document; pageCount = document.pageCount; observeScrolling()
         view.autoScales = scale <= 0
         if scale > 0 { view.scaleFactor = scale }
-        if let target = document.page(at: min(max(page, 0), document.pageCount - 1)) { view.go(to: target) }
+        if let target = document.page(at: min(max(page, 0), document.pageCount - 1)) { if let readingPoint { view.go(to: PDFDestination(page: target, at: readingPoint.cgPoint)) } else { view.go(to: target) } }
+        focus.load(url: url)
         captureMode = false; stateChanged()
     }
     private func stateChanged() {
         guard let document = view.document else { return }
-        if let current = view.currentPage { page = document.index(for: current) }
-        scale = view.scaleFactor
+        let newPage = view.currentPage.map { document.index(for: $0) } ?? 0
+        let newPosition = view.currentDestination.map { PDFPoint($0.point) }
+        let changed = page != newPage || scale != view.scaleFactor || position != newPosition
+        if page != newPage { page = newPage }
+        if scale != view.scaleFactor { scale = view.scaleFactor }
+        position = newPosition
         sourceOverlay.needsDisplay = true
-        onStateChange?(page, view.autoScales ? 0 : scale)
+        if changed { onStateChange?(page, view.autoScales ? 0 : scale) }
     }
+    var readingPosition: PDFPoint? { position }
     func goToPage(_ index: Int) {
         guard let target = view.document?.page(at: index) else { return }; view.go(to: target)
     }
@@ -110,10 +132,18 @@ private final class LoadedPDF: @unchecked Sendable {
 
 @MainActor final class ResearchPDFView: PDFView {
     var command: ((CommandID) -> Void)?
+    var commandMenu: (() -> [NSMenuItem])?
+    var focusKey: ((Int) -> Bool)?
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 125, focusKey?(1) == true { return }
+        if event.keyCode == 126, focusKey?(-1) == true { return }
+        super.keyDown(with: event)
+    }
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event) ?? NSMenu()
         menu.addItem(.separator())
-        for (title, id) in [("截图到笔记", CommandID.capture), ("摘录到笔记", .quote), ("适合窗口", .fit)] {
+        if let commandMenu { for item in commandMenu() { menu.addItem(item) }; return menu }
+        for (title, id) in [(L("截图到笔记"), CommandID.capture), (L("摘录到笔记"), .quote), (L("适合窗口"), .fit)] {
             let item = NSMenuItem(title: title, action: #selector(performMenu(_:)), keyEquivalent: "")
             item.target = self; item.representedObject = id.rawValue; menu.addItem(item)
         }

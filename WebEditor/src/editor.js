@@ -1,7 +1,11 @@
+import { t, language } from './localization.js'
+import { closeHistory } from '@tiptap/pm/history'
 import { createEditor, validateMarkdown } from './schema.js'
 import 'katex/dist/katex.min.css'
 import './style.css'
 
+document.documentElement.lang = language
+for (const selector of ['#math-form label', '#math-cancel', '#math-form button[type=submit]']) { const node = document.querySelector(selector); node.textContent = t(node.textContent) }
 let editor, paperID = null, loading = false
 const host = document.querySelector('#editor')
 const post = payload => window.webkit?.messageHandlers?.editor?.postMessage(payload)
@@ -58,6 +62,7 @@ document.addEventListener('click', event => {
 document.addEventListener('drop', event => { event.preventDefault() })
 
 window.paperEditor = {
+  clearDocument() { loading = true; paperID = null; makeEditor(); editor.setEditable(false); loading = false; return true },
   setDocument(payload) {
     try {
       const parsed = validateMarkdown(editor, payload.markdown)
@@ -84,6 +89,15 @@ window.paperEditor = {
   validate(markdown) {
     try { validateMarkdown(editor, markdown); return {ok: true} }
     catch (error) { return {ok: false, error: error.message} }
+  },
+  setReadOnly(value) { editor.setEditable(!value); return true },
+  replaceMarkdown(payload) {
+    if (paperID !== payload.id || editor.getMarkdown() !== payload.expected) return {ok: false}
+    const content = validateMarkdown(editor, payload.markdown)
+    editor.view.dispatch(closeHistory(editor.state.tr))
+    editor.commands.setContent(content)
+    editor.view.dispatch(closeHistory(editor.state.tr))
+    return {ok: true}
   },
   inspectMarkdown(markdown) {
     const parsed = validateMarkdown(editor, markdown)
@@ -127,6 +141,7 @@ window.paperEditor = {
   snapshot: () => paperID ? {id: paperID, markdown: editor.getMarkdown()} : null,
   // Only used by integration self-test; same public editor/transaction APIs as normal editing.
   diagnostics: () => ({paperID, json: editor.getJSON(), mathCount: document.querySelectorAll('.katex').length,
+    diagramState: Array.from(document.querySelectorAll('.mermaid-diagram')).map(d => ({ready: d.dataset.ready || 'not-started', error: d.dataset.error || ''})),
     imageCount: document.querySelectorAll('.tiptap img').length, editable: editor.isEditable,
     text: editor.getText(), ready: document.readyState}),
 }

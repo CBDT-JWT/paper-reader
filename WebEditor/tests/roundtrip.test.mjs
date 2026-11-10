@@ -15,6 +15,8 @@ const fixtures = [
   ['math', 'Inline $E = mc^2$ equation.\n\n$$\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n$$'],
   ['table', '| Method | Score |\n| --- | --- |\n| Ours | **0.95** |\n| Baseline | 0.81 |'],
   ['resources', '![Curve](assets/figure.png)\n\n[来源 · 第 2 页](paperreader://source/11111111-1111-1111-1111-111111111111)'],
+  ['image size', '![Curve](assets/figure.png "A curve {width=320}")'],
+  ['mermaid source', '```mermaid\nflowchart LR\n  Evidence --> Understanding\n```'],
   ['unicode', '# 论文笔记\n\n保持中文、α、β 与 😀。\n\n多行\n文本。'],
 ]
 for (const [name, markdown] of fixtures) {
@@ -25,6 +27,7 @@ for (const [name, markdown] of fixtures) {
     editor.commands.setContent(parsed)
     const output = editor.getMarkdown()
     assert.deepEqual(canonicalDocument(editor.markdown.parse(output)), canonicalDocument(parsed))
+    if (name === 'image size') assert.match(output, /width=320/)
     if (name === 'math') { assert.equal(element.querySelectorAll('.katex').length, 2); assert.match(output, /\\frac\{1\}\{3\}/) }
     if (name === 'resources') { assert.match(output, /assets\/figure\.png/); assert.match(output, /paperreader:\/\/source/) }
     editor.destroy(); element.remove()

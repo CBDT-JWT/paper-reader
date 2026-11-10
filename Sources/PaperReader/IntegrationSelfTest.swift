@@ -25,6 +25,10 @@ import PaperCore
             try await eventually { model.editor.ready }
             metrics["offlineEditorReadyMs"] = milliseconds(launch.duration(to: clock.now))
             checks.append("Real WKWebView loaded bundled Tiptap offline")
+            let language = AppLanguage.code
+            try check(L("保存笔记") == (language == "en" ? "Save note" : "保存笔记"), "Native commands follow the process system language")
+            let webLanguage = try await model.editor.webView.evaluateJavaScript("document.documentElement.lang") as? String
+            try check(webLanguage == language, "Web editor uses the same system language as native menus")
             let opened = clock.now
             await model.openDemo()
             guard let firstID = model.selectedID else { throw Failure(message: "PDF import failed: \(model.error ?? "unknown")") }
@@ -53,9 +57,16 @@ import PaperCore
             let paper = "local-first"
             ```
 
+            ```mermaid
+            flowchart LR
+              Evidence --> Notes
+            ```
+
             [External documentation](https://example.org)
             """
             try await model.editor.setDocument(id: firstID, markdown: markdown)
+            try await eventually { (try? await model.editor.webView.evaluateJavaScript("document.querySelector('.mermaid-diagram')?.dataset.ready === 'true' && !!document.querySelector('.mermaid-diagram svg')")) as? Bool == true }
+            checks.append("Bundled Mermaid rendered a real SVG offline in WKWebView")
             var diagnostics = try await model.editor.call("diagnostics") as? [String: Any] ?? [:]
             try check(diagnostics["mathCount"] as? Int == 2, "KaTeX rendered inline and block equations in WKWebView")
             // Click the real rendered formula, edit the actual source field, submit the UI form.
@@ -131,6 +142,97 @@ import PaperCore
             try FileManager.default.createDirectory(at: export, withIntermediateDirectories: true)
             try await model.store.exportNote(firstID, to: export)
             try check(FileManager.default.fileExists(atPath: export.appendingPathComponent(firstID.uuidString).appendingPathComponent(imagePath).path), "Markdown package export includes its relative image assets")
+            // Real PDFKit extraction and sidecar annotation controller/export paths.
+            let originalURL = model.store.pdfURL(firstID)
+            let layout = try await Task.detached { try PDFServices.layout(url: originalURL, page: 0) }.value
+            try check(layout.columnCount == 2, "Real PDFKit text extraction identified the fixture's two columns")
+            let focusLines = layout.focused(at: .init(x: 80, y: 595), above: 1, below: 2)
+            try check(!focusLines.isEmpty && focusLines.allSatisfy { $0.rect.cgRect.maxX < 310 }, "Focus window on a real PDF stays in the left column")
+            model.reader.goToPage(0); model.reader.focus.enabled = true
+            try await eventually { model.reader.focus.detectedColumns == 2 }
+            try check(model.reader.focus.overlay.highlights?.1.isEmpty == false, "Native focus overlay uses cached line regions")
+            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+            checks.append("Native mouse-transparent focus windows cover every connected display, including menu bar and Dock")
+            model.reader.focus.togglePin(at: .init(x: 80, y: 595), page: 0)
+            let pinned = model.reader.focus.overlay.highlights?.1
+            model.reader.focus.overlay.onMove?(.init(x: 400, y: 595), 0)
+            try check(model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1 == pinned, "Clicking pins the current PDF line against mouse movement")
+            model.reader.focus.step(1)
+            try check(model.reader.focus.overlay.highlights?.1 != pinned, "Arrow navigation advances a pinned line in reading order")
+            model.reader.focus.togglePin(at: .init(x: 400, y: 595), page: 0)
+            try check(!model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1.allSatisfy { $0.minX > 300 } == true, "Clicking again follows the mouse in the right column only")
+            model.reader.focus.keyboard = true
+            let visibleHoles = model.reader.focus.overlay.highlights
+            model.reader.focus.overlay.highlights = nil
+            model.reader.focus.overlay.onGeometryChanged?()
+            try check(model.reader.focus.screenMask.coversEveryScreen, "Dark field remains active when the pinned line is outside the viewport")
+            model.reader.focus.overlay.highlights = visibleHoles
+            model.reader.focus.overlay.onGeometryChanged?()
+            model.reader.focus.enabled = false
+            let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 48, y: 210, width: 516, height: 128))
+            model.reader.annotations.add([record]); model.reader.annotations.undo()
+            try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous sidecar state")
+            model.reader.annotations.redo(); await model.reader.annotations.flush()
+            let persistedAnnotations = try await model.store.annotations(firstID)
+            try check(persistedAnnotations == [record], "Annotation redo persists an independent sidecar")
+            let annotatedURL = export.appendingPathComponent("annotated.pdf")
+            try await PDFServices.exportAnnotated(original: originalURL, destination: annotatedURL, annotations: [record])
+            let annotated = try unwrap(PDFDocument(url: annotatedURL), "Cannot read annotated export")
+            try check(annotated.page(at: 0)?.annotations.isEmpty == false, "Annotated PDF export contains actual PDFKit annotations")
+            try check(try Data(contentsOf: originalURL) == originalPDF, "Drawing and annotated export preserve the original PDF bytes")
+            // A proposal goes through the production diff approval path and remains undoable.
+            let beforeAI = try await model.editor.call("getMarkdown") as? String ?? ""
+            model.ai.proposal = NoteProposal(paperID: firstID, before: beforeAI, after: beforeAI + "\n\nApproved AI edit.\n", reason: "Integration test")
+            try check(try await model.editor.call("getMarkdown") as? String == beforeAI, "Proposing an AI edit leaves the note unchanged")
+            await model.ai.applyProposal()
+            let applied = try await model.editor.call("getMarkdown") as? String ?? ""
+            try check(applied.contains("Approved AI edit."), "Explicit diff approval applies the proposed note change")
+            _ = try await model.editor.call("format", "undo")
+            let undone = try await model.editor.call("getMarkdown") as? String ?? ""
+            try check(!undone.contains("Approved AI edit."), "Approved AI note edits can be undone")
+            let stale = try await model.editor.call("replaceMarkdown", ["id": firstID.uuidString, "expected": "stale note", "markdown": "must not overwrite"]) as? [String: Any]
+            try check(stale?["ok"] as? Bool == false, "AI edits with a stale note revision are rejected")
+            await model.save()
+            // Session history is stored as ordinary sidecar JSON and can be restored.
+            let history = [AIMessage(role: "user", content: "A persisted research question"), AIMessage(role: "assistant", content: "A persisted answer [p.1](paperreader://page/1)")]
+            try await model.store.saveSidecar(firstID, name: "conversation.json", data: JSONEncoder().encode(history))
+            await model.ai.load(firstID)
+            try check(model.ai.messages == history, "AI conversation history restores for the matching paper")
+            if let endpoint = ProcessInfo.processInfo.environment["PAPER_READER_MOCK_API"], let url = URL(string: endpoint) {
+                let provider = CloudAIProvider(baseURL: url, model: "test-model", key: "test-key")
+                let toolCounter = ToolCounter()
+                let request = AIRequest(messages: [AIMessage(role: "user", content: "Read note")], tools: [AITool("readNote", "Read the test note")]) { call in
+                    guard call.name == "readNote" else { throw Failure(message: "Unexpected tool") }; await toolCounter.increment(); return .string("A real tool result")
+                }
+                var response = ""
+                for try await event in provider.stream(request) { if case .text(let text) = event { response += text } }
+                try check(response.contains("Mock tool flow completed"), "Cloud provider consumes a real HTTP SSE response")
+                try check(await toolCounter.count == 1, "Cloud provider routes a streamed function call through the constrained tool handler")
+                let image = try Data(contentsOf: model.store.directory(firstID).appendingPathComponent(imagePath))
+                let visionRequest = AIRequest(messages: [AIMessage(role: "user", content: "Inspect this test image")], images: [AIImage(data: image)], tools: []) { _ in throw Failure(message: "No tool expected") }
+                var vision = ""
+                for try await event in provider.stream(visionRequest) { if case .text(let text) = event { vision += text } }
+                try check(vision.contains("Mock image context received"), "Cloud provider sends PDF image context using the multimodal API contract")
+            }
+            if ProcessInfo.processInfo.environment["PAPER_READER_LIVE_TESTS"] == "1" {
+                let metadata = try await MetadataService.fetch(doi: "10.1038/nature14539")
+                try check(metadata.title.lowercased().contains("deep learning") && !metadata.authors.isEmpty, "Live Crossref lookup returned verified publication metadata")
+                let catalogue = AISettings(); catalogue.backend = .codex
+                await catalogue.refreshModels()
+                try check(!catalogue.models.isEmpty, "Live Codex App Server returned a selectable model catalogue")
+                let working = export.appendingPathComponent("CodexTest", isDirectory: true)
+                try FileManager.default.createDirectory(at: working, withIntermediateDirectories: true)
+                let provider = CodexAIProvider(executable: model.ai.settings.codexPath, model: "", cwd: working)
+                let request = AIRequest(messages: [AIMessage(role: "user", content: "Reply with exactly PAPER_READER_LIVE_OK. Do not use any tools.")], tools: []) { _ in throw Failure(message: "No tools authorized in live smoke test") }
+                var response = ""
+                for try await event in provider.stream(request) { if case .text(let text) = event { response += text } }
+                try check(response.contains("PAPER_READER_LIVE_OK"), "Live Codex App Server generated streamed text with shell disabled")
+                let image = try Data(contentsOf: model.store.directory(firstID).appendingPathComponent(imagePath))
+                let visionRequest = AIRequest(messages: [AIMessage(role: "user", content: "If the attached figure contains a blue curve, reply exactly PAPER_READER_VISION_OK. Otherwise reply IMAGE_MISSING. Do not use tools.")], images: [AIImage(data: image)], tools: []) { _ in throw Failure(message: "No tools authorized") }
+                var vision = ""
+                for try await event in provider.stream(visionRequest) { if case .text(let text) = event { vision += text } }
+                try check(vision.contains("PAPER_READER_VISION_OK"), "Live Codex App Server inspected a real PDF-rendered figure")
+            }
             // Exercise genuine native multipage printing, including math, table, code and image.
             let longNote = current + "\n\n" + (1...70).map { "## Section \($0)\n\nLong paragraph \($0). Evidence remains readable in the exported research notebook. The print engine must paginate and preserve content.\n" }.joined(separator: "\n")
             try await model.editor.setDocument(id: firstID, markdown: longNote)
@@ -156,6 +258,7 @@ import PaperCore
             print("INTEGRATION PASS: \(checks.count) checks. Report: \(output.path)")
             Darwin.exit(0)
         } catch {
+            if let details = try? await model.editor.call("diagnostics") { print("Editor diagnostics: \(details)") }
             try? writeResult(output, success: false, checks: checks, metrics: metrics, error: error.localizedDescription)
             print("INTEGRATION FAIL: \(error.localizedDescription). Report: \(output.path)")
             Darwin.exit(1)
@@ -181,3 +284,5 @@ import PaperCore
         try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]).write(to: url, options: .atomic)
     }
 }
+
+private actor ToolCounter { var count = 0; func increment() { count += 1 } }

@@ -25,7 +25,11 @@ final class EditorController: NSObject, ObservableObject {
         bridge.owner = self
         webView.navigationDelegate = self
         webView.setValue(false, forKey: "drawsBackground")
-        webView.load(URLRequest(url: URL(string: "paperreader-resource://editor/index.html")!))
+        webView.load(URLRequest(url: URL(string: "paperreader-resource://editor/index.html?lang=\(AppLanguage.code)")!))
+    }
+    func clear() async {
+        document = nil; resources.activePaperID = nil
+        if ready { _ = try? await call("clearDocument") }
     }
     func setDocument(id: UUID, markdown: String) async throws {
         document = (id, markdown)
@@ -36,7 +40,7 @@ final class EditorController: NSObject, ObservableObject {
         guard let document else { return }
         let result = try await call("setDocument", ["id": document.id.uuidString, "markdown": document.markdown]) as? [String: Any]
         if result?["ok"] as? Bool == false {
-            throw EditorError.message(result?["error"] as? String ?? "编辑器无法读取这份笔记。")
+            throw EditorError.message(result?["error"] as? String ?? L("编辑器无法读取这份笔记。"))
         }
     }
     func receive(_ message: Any) {
@@ -51,13 +55,13 @@ final class EditorController: NSObject, ObservableObject {
             document = (id, markdown); onChange?(id, markdown)
         case "link":
             if let string = body["url"] as? String, let url = URL(string: string) { onLink?(url) }
-        case "error": onError?(body["message"] as? String ?? "编辑器错误")
+        case "error": onError?(body["message"] as? String ?? L("编辑器错误"))
         default: break
         }
     }
     func call(_ method: String, _ argument: Any? = nil) async throws -> Any? {
-        let allowed = ["setDocument", "validate", "insertMarkdown", "format", "getMarkdown", "diagnostics", "snapshot", "inspectMarkdown", "rewriteImages"]
-        guard allowed.contains(method) else { throw EditorError.message("不支持的编辑器操作") }
+        let allowed = ["setDocument", "validate", "insertMarkdown", "format", "getMarkdown", "diagnostics", "snapshot", "inspectMarkdown", "rewriteImages", "setReadOnly", "replaceMarkdown", "clearDocument"]
+        guard allowed.contains(method) else { throw EditorError.message(L("不支持的编辑器操作")) }
         let argumentJSON: String
         if let argument {
             argumentJSON = String(data: try JSONSerialization.data(withJSONObject: argument, options: [.fragmentsAllowed, .sortedKeys]), encoding: .utf8)!
@@ -65,26 +69,26 @@ final class EditorController: NSObject, ObservableObject {
         return try await webView.evaluateJavaScript("window.paperEditor.\(method)(\(argumentJSON))")
     }
     func insert(_ markdown: String) async throws {
-        guard ready else { throw EditorError.message("编辑器尚未就绪") }
-        guard try await call("insertMarkdown", markdown) as? Bool == true else { throw EditorError.message("无法插入笔记，请先打开可编辑的论文笔记。") }
+        guard ready else { throw EditorError.message(L("编辑器尚未就绪")) }
+        guard try await call("insertMarkdown", markdown) as? Bool == true else { throw EditorError.message(L("无法插入笔记，请先打开可编辑的论文笔记。")) }
     }
     func format(_ action: String) {
         Task { do { _ = try await call("format", action) } catch { onError?(error.localizedDescription) } }
     }
     func validate(_ markdown: String) async throws {
         let result = try await call("validate", markdown) as? [String: Any]
-        guard result?["ok"] as? Bool == true else { throw EditorError.message(result?["error"] as? String ?? "Markdown 验证失败") }
+        guard result?["ok"] as? Bool == true else { throw EditorError.message(result?["error"] as? String ?? L("Markdown 验证失败")) }
     }
     /// Native WebKit pagination, asynchronous printing, and atomic destination replacement.
     func exportPDF(to url: URL) async throws -> Bool {
-        guard let window = webView.window, printJob == nil, ready else { throw EditorError.message("笔记窗口尚未准备好，或另一个导出仍在进行。") }
+        guard let window = webView.window, printJob == nil, ready else { throw EditorError.message(L("笔记窗口尚未准备好，或另一个导出仍在进行。")) }
         var assetsReady = false
         for _ in 0..<50 {
-            let loaded = try await webView.evaluateJavaScript("document.fonts.status === 'loaded' && Array.from(document.querySelectorAll('.tiptap img')).every(i => i.complete && i.naturalWidth > 0)") as? Bool
+            let loaded = try await webView.evaluateJavaScript("document.fonts.status === 'loaded' && Array.from(document.querySelectorAll('.tiptap img')).every(i => i.complete && i.naturalWidth > 0) && Array.from(document.querySelectorAll('.mermaid-diagram')).every(d => d.dataset.ready === 'true' || d.dataset.ready === 'error')") as? Bool
             if loaded == true { assetsReady = true; break }
             try await Task.sleep(for: .milliseconds(100))
         }
-        guard assetsReady else { throw EditorError.message("图片或字体尚未加载完成，请检查笔记资源后重试。") }
+        guard assetsReady else { throw EditorError.message(L("图片或字体尚未加载完成，请检查笔记资源后重试。")) }
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("PaperReader-export-\(UUID()).pdf")
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.paperSize = NSSize(width: 595.28, height: 841.89)
@@ -131,7 +135,7 @@ extension EditorController: WKNavigationDelegate {
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         ready = false
-        onError?("编辑器进程已重新启动，正在从最近的编辑内容恢复。")
+        onError?(L("编辑器进程已重新启动，正在从最近的编辑内容恢复。"))
         webView.reload()
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

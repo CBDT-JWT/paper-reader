@@ -2,7 +2,21 @@ import SwiftUI
 import AppKit
 import PaperCore
 
-@main struct PaperReaderApp: App {
+@main enum ApplicationEntry {
+    @MainActor static func main() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.count == 3, arguments[1] == "--export-annotations" {
+            do {
+                let request = try JSONDecoder().decode(AnnotationExportRequest.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[2])))
+                try PDFServices.writeAnnotated(request)
+                exit(0)
+            } catch { exit(1) }
+        }
+        PaperReaderApp.main()
+    }
+}
+
+struct PaperReaderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var bootstrap = AppBootstrap()
     var body: some Scene {
@@ -14,8 +28,8 @@ import PaperCore
                         Text("Paper Reader").font(.system(size: 20, weight: .semibold))
                         if let error = bootstrap.error {
                             Text(error).font(.system(size: 14)).foregroundStyle(.secondary).textSelection(.enabled)
-                            Button("重试") { Task { await bootstrap.start(delegate: delegate) } }.font(.system(size: 14))
-                        } else { ProgressView("正在打开本地文献库…").font(.system(size: 14)) }
+                            Button(L("重试")) { Task { await bootstrap.start(delegate: delegate) } }.font(.system(size: 14))
+                        } else { ProgressView(L("正在打开本地文献库…")).font(.system(size: 14)) }
                     }.padding(30).frame(minWidth: 1060, minHeight: 650)
                 }
             }.task { await bootstrap.start(delegate: delegate) }
@@ -25,11 +39,16 @@ import PaperCore
         .commands {
             AppCommands(registry: bootstrap.commands, printPaper: { bootstrap.model?.reader.view.print(with: NSPrintInfo.shared, autoRotate: true) })
             CommandGroup(after: .undoRedo) {
-                Button("撤销笔记编辑") { bootstrap.model?.editor.format("undo") }.disabled(bootstrap.model == nil)
-                Button("重做笔记编辑") { bootstrap.model?.editor.format("redo") }.disabled(bootstrap.model == nil)
+                Button(L("撤销笔记编辑")) { bootstrap.model?.editor.format("undo") }.disabled(bootstrap.model == nil)
+                Button(L("重做笔记编辑")) { bootstrap.model?.editor.format("redo") }.disabled(bootstrap.model == nil)
             }
         }
-        Settings { SettingsView(registry: bootstrap.commands) }
+        Settings {
+            TabView {
+                SettingsView(registry: bootstrap.commands).tabItem { Label(L("快捷键"), systemImage: "keyboard") }
+                if let model = bootstrap.model { AISettingsView(settings: model.ai.settings).tabItem { Label("AI", systemImage: "sparkle") } }
+            }
+        }
     }
 }
 

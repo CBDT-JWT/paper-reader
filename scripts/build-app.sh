@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "${0:A:h}/.."
 CONFIGURATION="${1:-debug}"
+python3 scripts/localize.py --check
 if [[ -d WebEditor/node_modules ]]; then
   (cd WebEditor && npm run build)
 elif [[ ! -f Sources/PaperReader/Resources/Editor/editor.js ]]; then
@@ -14,8 +15,16 @@ BIN_DIR="$(swift build --scratch-path "$BUILD_DIR" -c "$CONFIGURATION" --show-bi
 STAGING_APP="$BUILD_DIR/Apps/Paper Reader.app"
 mkdir -p "$STAGING_APP/Contents/MacOS" "$STAGING_APP/Contents/Resources"
 cp "$BIN_DIR/PaperReader" "$STAGING_APP/Contents/MacOS/PaperReader"
-rm -rf "$STAGING_APP/Contents/Resources/PaperReader_PaperReader.bundle"
-ditto --norsrc --noextattr "$BIN_DIR/PaperReader_PaperReader.bundle" "$STAGING_APP/Contents/Resources/PaperReader_PaperReader.bundle"
+for RESOURCE_BUNDLE in "$BIN_DIR"/PaperReader_*.bundle; do
+  RESOURCE_NAME="${RESOURCE_BUNDLE:t}"
+  rm -rf "$STAGING_APP/Contents/Resources/$RESOURCE_NAME"
+  ditto --norsrc --noextattr "$RESOURCE_BUNDLE" "$STAGING_APP/Contents/Resources/$RESOURCE_NAME"
+done
+CORE_RESOURCES="$BIN_DIR/PaperReader_PaperCore.bundle/Contents/Resources"
+if [[ ! -d "$CORE_RESOURCES" ]]; then CORE_RESOURCES="$BIN_DIR/PaperReader_PaperCore.bundle"; fi
+for LANGUAGE in en zh-Hans; do
+  ditto --norsrc --noextattr "$CORE_RESOURCES/$LANGUAGE.lproj" "$STAGING_APP/Contents/Resources/$LANGUAGE.lproj"
+done
 cp scripts/Info.plist "$STAGING_APP/Contents/Info.plist"
 xattr -cr "$STAGING_APP"
 codesign --force --deep --sign - "$STAGING_APP"

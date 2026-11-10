@@ -11,7 +11,12 @@ if [[ "$MODE" == stable ]]; then python3 scripts/release/preflight.py; fi
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' scripts/Info.plist)"
 TAG="v$VERSION"
 [[ "$MODE" == preview ]] && TAG="$TAG-preview.1"
-if gh release view "$TAG" --repo CBDT-JWT/paper-reader >/dev/null 2>&1; then print "Release $TAG already exists. Do not overwrite published binaries." >&2; exit 1; fi
+EXISTING_DRAFT=false
+if EXISTING_DRAFT="$(gh release view "$TAG" --repo CBDT-JWT/paper-reader --json isDraft --jq .isDraft 2>/dev/null)"; then
+  [[ "$EXISTING_DRAFT" == true ]] || { print "Release $TAG is published. Do not overwrite published binaries." >&2; exit 1; }
+else
+  EXISTING_DRAFT=false
+fi
 scripts/build-app.sh release
 APP="${PAPER_READER_BUILD_DIR:-$HOME/Library/Caches/PaperReader/Build}/Apps/Paper Reader.app"
 PROFILE="${PAPER_READER_NOTARY_PROFILE:-PaperReader}"
@@ -32,7 +37,12 @@ fi
 (cd build/release && shasum -a 256 "${DMG:t}" > SHA256SUMS.txt)
 ARGS=(--repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$NOTES" --draft)
 [[ "$MODE" == preview ]] && ARGS+=(--prerelease)
-gh release create "$TAG" "$DMG" build/release/SHA256SUMS.txt "${ARGS[@]}"
+if [[ "$EXISTING_DRAFT" == true ]]; then
+  gh release edit "$TAG" --repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$NOTES"
+  gh release upload "$TAG" --repo CBDT-JWT/paper-reader --clobber "$DMG" build/release/SHA256SUMS.txt
+else
+  gh release create "$TAG" "$DMG" build/release/SHA256SUMS.txt "${ARGS[@]}"
+fi
 if [[ "$MODE" == stable ]]; then
   TOOLS="${PAPER_READER_BUILD_DIR:-$HOME/Library/Caches/PaperReader/Build}/artifacts/sparkle/Sparkle/bin"
   FEED_DIR="$(mktemp -d /tmp/PaperReader-Appcast.XXXXXX)"

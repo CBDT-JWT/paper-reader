@@ -4,7 +4,7 @@ macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
-0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；当前下载和公证状态以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
+0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[0.4.1 签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
 
 ## 本轮交互修复
 
@@ -153,6 +153,7 @@ Library/
 | KaTeX | 0.18.10 | MIT |
 | Mermaid | 12.3.0 | MIT |
 | esbuild / jsdom（开发测试） | 0.28.2 / 27.4.0 | MIT |
+| Sparkle | 2.10.1 | MIT |
 | PDFKit / WebKit / SQLite | 系统提供 | Apple SDK / SQLite 公有领域 |
 
 依赖引入前检查了许可证、维护信息、实际源码 API 与运行时要求；当前 npm 审计无已知漏洞。许可证随包保存在 `Editor/THIRD-PARTY-NOTICES.txt`，编辑器 JS、CSS、公式字体、图表渲染库全部离线打包。

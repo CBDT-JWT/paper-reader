@@ -1,32 +1,38 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.1",
   "status": "stable",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
-  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.3.0/PaperReader-0.3.0-arm64.dmg",
-  "sha256": "555b644f043b913ee5b3257f86726b849878f487df0076b80fbd25f7e9f8a934",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.1/PaperReader-0.4.1-arm64.dmg",
+  "sha256": "c3b3ced943fc1974770933326584b65555e0beecba4a2d299710e56fecc6475c",
   "notarized": true,
-  "build": "4",
-  "size": 8409342,
+  "build": "6",
+  "size": 8614613,
   "teamID": "Q83556V27Y",
   "applicationNotarization": {
-    "id": "4298d105-bcd4-4f2b-b779-523bfc2f14d9",
+    "id": "2565030e-6195-43c3-a2b6-731bcfe23167",
     "status": "Accepted"
   },
   "dmgNotarization": {
-    "id": "6041fa7d-9ab9-43d9-8381-7c90a3290187",
+    "id": "eb4f3a39-3a8d-4abd-a865-c70d78111e2d",
     "status": "Accepted"
   },
   "publicDownloadVerified": true,
   "appAndDMGStaplerValidated": true,
   "gatekeeperApp": "Notarized Developer ID",
   "gatekeeperDMG": "Notarized Developer ID",
-  "nativePublicArtifactChecks": {
+  "nativeSourceChecks": {
     "en": 53,
     "zh-Hans": 53
   },
+  "workspaceSourceChecks": {
+    "en": 15,
+    "zh-Hans": 15,
+    "realICloudFolderUsed": true
+  },
+  "publicArtifactFreshProcessBookmarkVerified": true,
   "interactiveFocusChecksSkipped": 9,
   "liveSignedFeedVerified": true,
-  "olderHostDiscoversBuild4": true,
-  "automaticInstallRelaunchValidated": false
+  "automaticInstallRelaunchValidated": false,
+  "olderHostBuild4DiscoversBuild6": true
 }

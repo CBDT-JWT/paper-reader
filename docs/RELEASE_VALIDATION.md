@@ -1,4 +1,18 @@
-# 0.3.0 release validation — 2026-11-10
+# Distribution validation — 2026-11-10
+
+## Current release: 0.4.1 / build 6
+
+Published at https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.1 and linked from the live HTTPS website. 0.4.1 supersedes 0.4.0 and fixes unsandboxed workspace bookmark reopening across application launches.
+
+- Application notarization `2565030e-6195-43c3-a2b6-731bcfe23167`: **Accepted**. DMG notarization `eb4f3a39-3a8d-4abd-a865-c70d78111e2d`: **Accepted**. Developer ID Application team Q83556V27Y.
+- Downloaded the public 8,614,613-byte DMG from GitHub, verified SHA-256 against SHA256SUMS.txt and website metadata, mounted read-only, and validated the DMG and included app tickets with stapler. Gatekeeper accepted both as **Notarized Developer ID**; strict recursive code-signature validation passed.
+- The actual public app executable resolves a persisted ordinary workspace bookmark in a fresh process. The source/native suite passes 29 Swift tests, 11 editor tests, 53 baseline checks per language and 15 workspace checks per language (ordinary folder and real single-Mac iCloud Drive). Nine interactive focus checks were explicitly skipped in this session. See [cloud and folder evidence](ICLOUD_VALIDATION.md).
+- Retrieved the live HTTPS feed and verified its production Ed25519 signature with Sparkle’s official verifier. Its version, immutable download URL and length match the published artifact. The original signed 0.3.0 / build 4 host discovers **0.4.1 / build 6** through Sparkle’s real information-check API. Automatic binary replacement/relaunch is still not validated.
+- No private papers, API keys, Apple credentials, signing keys or user workspace bookmarks are included in public assets or test reports.
+
+The original 0.3.0 release evidence follows for continuity.
+
+## 0.3.0 historical release validation — 2026-11-10
 
 Environment: Apple Silicon, macOS 27.3 / Xcode 27 / Swift 6.4 / Node 26.4.
 

@@ -119,6 +119,27 @@ public struct ReadingLayout: Sendable {
         guard let index = column.firstIndex(where: { $0.id == nearest.id }) else { return [] }
         return Array(column[max(0, index - max(above, 0))...min(column.count - 1, index + max(below, 0))])
     }
+    /// One aperture contains the selected lines, including their interline whitespace.
+    /// Padding stops at the gutter so a window never includes the adjacent column.
+    public func focusRectangle(at point: PDFPoint, above: Int, below: Int, manualColumn: Int? = nil, manualCount: Int = 2, padding: Double = 6) -> PDFRect? {
+        let selected = focused(at: point, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount)
+        guard let first = selected.first else { return nil }
+        var limit = bounds.cgRect
+        if let manualColumn {
+            let width = bounds.width / Double(max(1, manualCount))
+            limit = CGRect(x: bounds.x + Double(manualColumn) * width, y: bounds.y, width: width, height: bounds.height).intersection(limit)
+        } else if first.column >= 0, columnCount > 1 {
+            let own = lines.filter { $0.column == first.column }.reduce(CGRect.null) { $0.union($1.rect.cgRect) }
+            let left = lines.filter { $0.column >= 0 && $0.column < first.column }.map { $0.rect.cgRect.maxX }.max()
+            let right = lines.filter { $0.column > first.column }.map { $0.rect.cgRect.minX }.min()
+            if let left { limit.origin.x = max(limit.minX, (left + own.minX) / 2) }
+            let maximum = right.map { min(bounds.cgRect.maxX, (own.maxX + $0) / 2) } ?? bounds.cgRect.maxX
+            limit.size.width = max(0, maximum - limit.minX)
+        }
+        let content = selected.reduce(CGRect.null) { $0.union($1.rect.cgRect) }
+        let rectangle = content.insetBy(dx: -max(0, padding), dy: -max(4, padding)).intersection(limit)
+        return rectangle.isNull || rectangle.isEmpty ? nil : PDFRect(rectangle)
+    }
 }
 private func median(_ values: [Double], fallback: Double) -> Double { let sorted = values.sorted(); return sorted.isEmpty ? fallback : sorted[sorted.count / 2] }
 private func overlap(_ line: ReadingLine, _ group: [ReadingLine]) -> Double {

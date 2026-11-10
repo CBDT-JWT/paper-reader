@@ -1,0 +1,32 @@
+{
+  "version": "0.3.0",
+  "status": "stable",
+  "architecture": "arm64",
+  "minimumSystemVersion": "14.0",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.3.0/PaperReader-0.3.0-arm64.dmg",
+  "sha256": "555b644f043b913ee5b3257f86726b849878f487df0076b80fbd25f7e9f8a934",
+  "notarized": true,
+  "build": "4",
+  "size": 8409342,
+  "teamID": "Q83556V27Y",
+  "applicationNotarization": {
+    "id": "4298d105-bcd4-4f2b-b779-523bfc2f14d9",
+    "status": "Accepted"
+  },
+  "dmgNotarization": {
+    "id": "6041fa7d-9ab9-43d9-8381-7c90a3290187",
+    "status": "Accepted"
+  },
+  "publicDownloadVerified": true,
+  "appAndDMGStaplerValidated": true,
+  "gatekeeperApp": "Notarized Developer ID",
+  "gatekeeperDMG": "Notarized Developer ID",
+  "nativePublicArtifactChecks": {
+    "en": 53,
+    "zh-Hans": 53
+  },
+  "interactiveFocusChecksSkipped": 9,
+  "liveSignedFeedVerified": true,
+  "olderHostDiscoversBuild4": true,
+  "automaticInstallRelaunchValidated": false
+}

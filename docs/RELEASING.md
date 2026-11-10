@@ -3,7 +3,7 @@
 Website: https://www.weitao-jiang.cn/paper-reader/
 Source: https://github.com/CBDT-JWT/paper-reader
 
-The current development machine has an **Apple Development** identity only. That is not a Developer ID distribution identity. Do not call ad-hoc/development builds notarized, or put them in the stable appcast.
+Release 0.3.0 was published on 2026-11-10 using **Developer ID Application: Weitao Jiang (Q83556V27Y)** and the local `PaperReader` notarization profile. Both the application and DMG were accepted by Apple, stapled, and Gatekeeper-assessed. See [distribution verification](RELEASE_VALIDATION.md). Ad-hoc/development builds remain excluded from the stable feed. The private certificate key, notarization password and Sparkle key stay in the publisher’s Keychain.
 
 ## One-time production setup
 

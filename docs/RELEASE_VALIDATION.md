@@ -13,4 +13,16 @@ Environment: Apple Silicon, macOS 27.3 / Xcode 27 / Swift 6.4 / Node 26.4.
 
 Reproduce normal validation with `scripts/test.sh`. In a desktop session that cannot activate test windows, explicitly use `PAPER_READER_SKIP_INTERACTIVE_FOCUS=1 scripts/test.sh`; that is partial GUI coverage, not a substitute for an interactive run. Reports: `~/Library/Caches/PaperReader/Build/Reports/` by default. Override with `PAPER_READER_TEST_REPORT_DIR` outside synced folders. `python3 scripts/test-release.py` exercises Sparkle signatures without accessing the production private key.
 
-Production limitations: no Developer ID Application certificate or `PaperReader` notarization profile was available. The preview DMG is not an Apple-notarized distribution. Complete stable signing/notarization and an old-to-new production installation/relaunch test remain pending developer-account configuration. Stable feed contains no preview update.
+## Final distribution verification
+
+The publisher installed a matching Developer ID Application certificate and configured the local `PaperReader` notarization profile. Release **v0.3.0** is published at https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.3.0 and linked from the live website.
+
+- Application notarization: **Accepted**, submission `4298d105-bcd4-4f2b-b779-523bfc2f14d9`.
+- DMG notarization: **Accepted**, submission `6041fa7d-9ab9-43d9-8381-7c90a3290187`.
+- Stapler validation succeeded for the original application and DMG. Both Gatekeeper assessments returned **Notarized Developer ID**.
+- Downloaded the actual public GitHub DMG again. Its SHA-256 matches the published checksum and website manifest; size is 8,409,342 bytes. Rechecked the downloaded DMG’s signature, stapled ticket and Gatekeeper assessment, then mounted it read-only. The embedded app’s signature, stapled ticket and Gatekeeper assessment also passed.
+- Copied that app from the downloaded DMG into an isolated installation directory. The actual hardened-runtime / Developer ID signed executable passed **53 English and 53 Simplified Chinese native checks**, with the nine interactive focus checks explicitly skipped as above. No user research library was used.
+- Retrieved the live HTTPS appcast and verified its production Ed25519 signature with Sparkle’s official tool. The enclosure URL, file length and archive checksum match the published download. The appcast contains one stable release, build 4 / version 0.3.0, requiring macOS 14+ and arm64.
+- Sparkle loaded and validated that signed live feed from the published app bundle and correctly offered no newer update to build 4. A separately re-signed temporary host fixture with build 3 discovered eligible update **0.3.0 / build 4** through the real Sparkle information-check API. This tests update discovery, not automatic replacement/relaunch; that fixture was not distributed or notarized as an older release.
+
+The complete old-to-new automatic installation/relaunch sequence, Intel, older macOS versions, and the nine foreground/fullscreen checks remain outside this release’s completed validation. There is no claim that every phase’s advanced feature or every environment has been validated. Public release verification metadata is recorded in [release-distribution.json](release-distribution.json).

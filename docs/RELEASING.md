@@ -39,7 +39,7 @@ The publisher needs `gh` authentication with access to both repositories; binari
 
 ## End-user updates
 
-Sparkle 2.10.1 is pinned with its upstream checksum and revision. The app embeds the framework and helpers. The App menu has “Check for Updates…”; Settings offers automatic checks. Sparkle manages consent/scheduling and validates the Ed25519 archive signature before extraction. The publisher also signs the feed; mandatory feed-signature enforcement is currently disabled so that the initial empty feed remains usable before signing authorization. System profiling is disabled. The application delegate flushes notes before terminating for an update. Feed URL: `https://www.weitao-jiang.cn/paper-reader/appcast.xml`.
+Sparkle 2.10.1 is pinned with its upstream checksum and revision. The app embeds the framework and helpers. The App menu has “Check for Updates…”; Settings offers automatic checks. Sparkle manages consent/scheduling and validates the Ed25519 archive signature before extraction. The publisher signs the feed too, and the app requires a valid feed signature (`SURequireSignedFeed`). The initial empty feed has also been signed with the production update key. System profiling is disabled. The application delegate flushes notes before terminating for an update. Feed URL: `https://www.weitao-jiang.cn/paper-reader/appcast.xml`.
 
 The supported binary currently targets **Apple Silicon / macOS 14+**. Intel is not advertised or validated. A complete production replacement/relaunch test requires a notarized old/new build pair; it cannot be claimed from an ad-hoc build or a signature round trip alone.
 

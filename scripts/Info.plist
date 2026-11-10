@@ -75,6 +75,6 @@
 	<key>SUPublicEDKey</key>
 	<string>g7+q2Tr8Zhjlrhc23DuM2JzTzgOKy0n4SrqTb4jsKmk=</string>
 	<key>SURequireSignedFeed</key>
-	<false/>
+	<true/>
 </dict>
 </plist>

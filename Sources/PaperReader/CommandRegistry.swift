@@ -4,7 +4,7 @@ import PDFKit
 import Combine
 
 enum CommandID: String, CaseIterable, Codable, Identifiable {
-    case newFolder, focus, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, askAI, outline, noteWindow
+    case newFolder, focus, focusAutomatic, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, askAI, outline, noteWindow
     case open, openFolder, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
     case capture, quote, zoomIn, zoomOut, fit, nextPage, previousPage, sidebar, notes, revealFiles
     var id: String { rawValue }
@@ -15,6 +15,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .drawRectangle: L("绘制矩形")
         case .newFolder: L("新建文件夹…")
         case .focus: L("阅读聚焦")
+        case .focusAutomatic: L("播放／暂停自动阅读")
         case .highlight: L("高亮选中文字")
         case .drawing: L("自由绘制")
         case .laser: L("激光笔")
@@ -52,6 +53,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .drawRectangle: "rectangle"
         case .newFolder: "folder.badge.plus"
         case .focus: "circle.lefthalf.filled"
+        case .focusAutomatic: "playpause"
         case .highlight: "highlighter"
         case .drawing: "pencil.tip"
         case .laser: "laser.burst"
@@ -210,7 +212,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut("p").disabled(!registry.hasPaper)
         }
         CommandMenu(L("阅读")) {
-            ForEach([CommandID.capture, .quote, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .focus, .undoAnnotation, .redoAnnotation, .askAI, .outline, .noteWindow, .zoomIn, .zoomOut, .fit, .previousPage, .nextPage, .sidebar, .notes]) { RegisteredCommandButton(registry: registry, id: $0) }
+            ForEach([CommandID.capture, .quote, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .focus, .focusAutomatic, .undoAnnotation, .redoAnnotation, .askAI, .outline, .noteWindow, .zoomIn, .zoomOut, .fit, .previousPage, .nextPage, .sidebar, .notes]) { RegisteredCommandButton(registry: registry, id: $0) }
         }
     }
 }

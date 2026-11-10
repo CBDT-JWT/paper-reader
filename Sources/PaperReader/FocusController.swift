@@ -4,29 +4,89 @@ import Combine
 import PaperCore
 
 @MainActor final class FocusController: ObservableObject {
-    @Published var enabled = false { didSet { overlay.enabled = enabled; if enabled { prepare() } else { screenMask.hide() }; refreshMask(); overlay.needsDisplay = true } }
-    @Published var above = 1 { didSet { update() } }
-    @Published var below = 2 { didSet { update() } }
-    @Published var opacity = 0.48 { didSet { refreshMask(); overlay.needsDisplay = true } }
-    @Published var keyboard = false
-    @Published var manualColumn = -1 { didSet { update() } }
-    @Published var manualCount = 2 { didSet { update() } }
+    @Published var enabled = false {
+        didSet {
+            overlay.enabled = enabled
+            if enabled { prepare() }
+            else {
+                automatic = false
+                cancelMotion()
+                motion.restoreScrollLimits()
+                screenMask.hide()
+            }
+            refreshMask()
+        }
+    }
+    @Published var above = 1 { didSet { parametersChanged() } }
+    @Published var below = 2 { didSet { parametersChanged() } }
+    @Published var opacity = 0.48 { didSet { refreshMask() } }
+    @Published var feather = UserDefaults.standard.object(forKey: "focus.feather") as? Double ?? 18 {
+        didSet { UserDefaults.standard.set(feather, forKey: "focus.feather"); refreshMask() }
+    }
+    @Published var linesPerMinute = UserDefaults.standard.object(forKey: "focus.linesPerMinute") as? Double ?? 45 {
+        didSet { UserDefaults.standard.set(linesPerMinute, forKey: "focus.linesPerMinute") }
+    }
+    @Published var keyboard = false {
+        didSet {
+            guard oldValue != keyboard else { return }
+            if !keyboard { automatic = false; cancelMotion(); update() }
+            else if !automatic { centerCurrent() }
+        }
+    }
+    @Published var automatic = false {
+        didSet {
+            guard oldValue != automatic else { return }
+            if automatic {
+                if !enabled { enabled = true }
+                keyboard = true
+                beginAutomaticReading()
+            } else {
+                cancelMotion()
+                if let entry = overlay.highlights, let anchor = overlay.readingAnchor {
+                    page = entry.0
+                    lastPoint = anchor
+                }
+                refreshMask()
+            }
+        }
+    }
+    @Published var manualColumn = -1 { didSet { if !updatingAnchor { parametersChanged() } } }
+    @Published var manualCount = 2 {
+        didSet {
+            if manualColumn >= manualCount {
+                updatingAnchor = true
+                manualColumn = max(0, manualCount - 1)
+                updatingAnchor = false
+            }
+            parametersChanged()
+        }
+    }
     @Published private(set) var detectedColumns = 0
     @Published private(set) var status = ""
     let overlay = FocusOverlay()
     let screenMask = ScreenFocusMask()
+    private lazy var motion = FocusMotion(overlay: overlay)
+    private var motionTask: Task<Void, Never>?
     private var geometryObservers: [NSObjectProtocol] = []
     private var clickMonitor: Any?
     private var mouseDownLocation: CGPoint?
     private var layouts: [Int: ReadingLayout] = [:]
     private var loading: Set<Int> = []
+    private var failedPages: Set<Int> = []
     private var url: URL?
     private var generation = UUID()
     private var lastPoint: PDFPoint?
     private var page = 0
+    private var updatingAnchor = false
+    var isMoving: Bool { motion.isAnimating }
+    private var selectedColumn: Int? { manualColumn < 0 ? nil : manualColumn }
+
     init() {
         overlay.onMove = { [weak self] point, page in
-            guard let self, !keyboard else { return }; self.page = page; lastPoint = point; update()
+            guard let self, !keyboard else { return }
+            self.page = page
+            lastPoint = point
+            update()
         }
         overlay.onGeometryChanged = { [weak self] in self?.refreshMask() }
         screenMask.onEscape = { [weak self] in self?.enabled = false }
@@ -35,7 +95,8 @@ import PaperCore
             if event.type == .keyDown, self.keyboard, event.keyCode == 125 || event.keyCode == 126 {
                 let responder = event.window?.firstResponder as? NSView
                 if responder === pdfView || responder?.isDescendant(of: pdfView) == true || responder === self.overlay {
-                    self.step(event.keyCode == 125 ? 1 : -1); return nil
+                    self.step(event.keyCode == 125 ? 1 : -1)
+                    return nil
                 }
             }
             let point = pdfView.convert(event.locationInWindow, from: nil)
@@ -55,93 +116,247 @@ import PaperCore
                 let identifier = (notification.object as? NSWindow).map(ObjectIdentifier.init)
                 MainActor.assumeIsolated {
                     guard let self, let window = self.overlay.window, identifier == ObjectIdentifier(window) else { return }
-                    self.prepare(); self.refreshMask()
+                    self.parametersChanged()
+                    self.prepare()
                 }
             })
         }
+        geometryObservers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.automatic = false }
+        })
     }
+
     private func refreshMask() {
-        let regions = overlay.screenRegions
-        screenMask.update(regions: regions, opacity: opacity, enabled: enabled && url != nil, owner: overlay.pdfView?.window)
+        screenMask.update(regions: overlay.screenRegions, opacity: opacity, enabled: enabled && url != nil,
+                          owner: overlay.pdfView?.window, feather: feather, holeVisibility: overlay.holeVisibility)
     }
-    func load(url: URL) { generation = UUID(); self.url = url; layouts = [:]; loading = []; lastPoint = nil; keyboard = false; overlay.highlights = nil; prepare(); refreshMask() }
+
+    func load(url: URL) {
+        automatic = false
+        cancelMotion()
+        generation = UUID()
+        self.url = url
+        layouts = [:]
+        loading = []
+        failedPages = []
+        lastPoint = nil
+        page = 0
+        keyboard = false
+        overlay.highlights = nil
+        prepare()
+        refreshMask()
+    }
+
     func prepare() {
         guard enabled, let pdfView = overlay.pdfView, let document = pdfView.document, document.pageCount > 0 else { return }
-        // Start at the pointer if it is over the PDF; otherwise use the visible viewport.
-        // A restored scroll position must never anchor the hole to an off-screen first line.
         if !keyboard {
             let pointer = pdfView.window.map { pdfView.convert($0.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil) }
             let location = pointer.flatMap { pdfView.bounds.contains($0) ? $0 : nil } ?? CGPoint(x: pdfView.bounds.midX, y: pdfView.bounds.midY)
             if let target = pdfView.page(for: location, nearest: true) {
-                page = document.index(for: target); lastPoint = PDFPoint(pdfView.convert(location, to: target))
+                page = document.index(for: target)
+                lastPoint = PDFPoint(pdfView.convert(location, to: target))
             }
         }
         let visible = pdfView.currentPage.map { document.index(for: $0) } ?? page
         for index in max(0, visible - 1)...min(visible + 1, document.pageCount - 1) { cache(index) }
-        cache(page); update(); refreshMask()
+        cache(page)
+        if !motion.isAnimating { update() }
+        refreshMask()
     }
+
     private func cache(_ page: Int) {
-        guard let url, layouts[page] == nil, !loading.contains(page) else { return }
-        loading.insert(page); let token = generation
+        guard let count = overlay.pdfView?.document?.pageCount, (0..<count).contains(page) else { return }
+        guard let url, layouts[page] == nil, !loading.contains(page), !failedPages.contains(page) else { return }
+        loading.insert(page)
+        let token = generation
         Task {
             do {
                 let layout = try await Task.detached(priority: .utility) { try PDFServices.layout(url: url, page: page) }.value
                 guard token == generation else { return }
-                layouts[page] = layout; loading.remove(page)
-                if self.page == page { update() }
-            } catch { status = error.localizedDescription; loading.remove(page) }
+                layouts[page] = layout
+                loading.remove(page)
+                if self.page == page, !motion.isAnimating {
+                    update()
+                    if keyboard && !automatic { centerCurrent() }
+                }
+            } catch {
+                guard token == generation else { return }
+                status = error.localizedDescription
+                failedPages.insert(page)
+                loading.remove(page)
+            }
         }
     }
+
     func togglePin(at point: PDFPoint, page: Int) {
         guard enabled else { return }
-        self.page = page; lastPoint = point; keyboard.toggle(); update()
+        self.page = page
+        lastPoint = point
+        keyboard.toggle()
+        if !keyboard { update() }
     }
+
     func step(_ direction: Int) {
-        guard enabled, keyboard, let layout = layouts[page], !layout.lines.isEmpty else { return }
-        let point = lastPoint ?? PDFPoint(x: layout.lines[0].rect.x, y: layout.lines[0].rect.y)
-        let focused = layout.focused(at: point, above: 0, below: 0, manualColumn: manualColumn < 0 ? nil : manualColumn, manualCount: manualCount)
-        guard let current = focused.first else { return }
-        let column = layout.readingOrder(manualColumn: manualColumn < 0 ? nil : manualColumn, manualCount: manualCount)
-        guard let index = column.firstIndex(where: { $0.id == current.id }) else { return }
-        let offset = index + direction
-        if offset < 0 || offset >= column.count {
-            let targetPage = page + (direction > 0 ? 1 : -1)
-            if let adjacent = layouts[targetPage], let next = direction > 0 ? adjacent.readingOrder(manualColumn: manualColumn < 0 ? nil : manualColumn, manualCount: manualCount).first : adjacent.readingOrder(manualColumn: manualColumn < 0 ? nil : manualColumn, manualCount: manualCount).last {
-                page = targetPage; lastPoint = .init(x: next.rect.x + next.rect.width / 2, y: next.rect.y + next.rect.height / 2)
-                update()
-                if let view = overlay.pdfView, let pdfPage = view.document?.page(at: page) { view.go(to: next.rect.cgRect, on: pdfPage) }
-            }
-            return
+        guard enabled, keyboard else { return }
+        automatic = false
+        cancelMotion()
+        motionTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let target = try await nextFrame(direction: direction) else { return }
+                setAnchor(target)
+                try await motion.animate(to: target, automatic: false, speed: { self.linesPerMinute })
+            } catch is CancellationError { }
+            catch { status = error.localizedDescription }
         }
-        let next = column[offset]
-        lastPoint = .init(x: next.rect.x + next.rect.width/2, y: next.rect.y + next.rect.height/2); update()
-        if let view = overlay.pdfView, let pdfPage = view.document?.page(at: page), !view.bounds.insetBy(dx: 0, dy: 24).contains(view.convert(next.rect.cgRect, from: pdfPage)) { view.go(to: next.rect.cgRect, on: pdfPage) }
     }
+
+    private func beginAutomaticReading() {
+        cancelMotion()
+        motionTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await waitForLayout(page)
+                guard let initial = currentFrame() else { automatic = false; return }
+                try await motion.animate(to: initial, automatic: false, speed: { self.linesPerMinute })
+                while enabled && automatic {
+                    guard let target = try await nextFrame(direction: 1) else { automatic = false; return }
+                    setAnchor(target)
+                    try await motion.animate(to: target, automatic: true, speed: { self.linesPerMinute })
+                }
+            } catch is CancellationError { }
+            catch { status = error.localizedDescription; automatic = false }
+        }
+    }
+
+    private func waitForLayout(_ index: Int) async throws {
+        cache(index)
+        while layouts[index] == nil && loading.contains(index) {
+            try await Task.sleep(for: .milliseconds(30))
+        }
+        try Task.checkCancellation()
+    }
+
+    private func nextFrame(direction: Int) async throws -> FocusFrame? {
+        try await waitForLayout(page)
+        guard let layout = layouts[page], let point = lastPoint else { return nil }
+        let order = layout.readingOrder(manualColumn: selectedColumn, manualCount: manualCount)
+        guard let current = layout.focused(at: point, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first,
+              let index = order.firstIndex(where: { $0.id == current.id }) else { return nil }
+        let next = index + (direction > 0 ? 1 : -1)
+        if order.indices.contains(next) { return frame(for: order[next], page: page, layout: layout, manualColumn: selectedColumn) }
+        if let column = selectedColumn {
+            let nextColumn = column + (direction > 0 ? 1 : -1)
+            if (0..<manualCount).contains(nextColumn) {
+                let nextOrder = layout.readingOrder(manualColumn: nextColumn, manualCount: manualCount)
+                if let line = direction > 0 ? nextOrder.first : nextOrder.last {
+                    return frame(for: line, page: page, layout: layout, manualColumn: nextColumn)
+                }
+            }
+        }
+        let adjacentPage = page + (direction > 0 ? 1 : -1)
+        guard let count = overlay.pdfView?.document?.pageCount, (0..<count).contains(adjacentPage) else { return nil }
+        try await waitForLayout(adjacentPage)
+        guard let adjacent = layouts[adjacentPage] else { return nil }
+        let nextColumn = selectedColumn.map { _ in direction > 0 ? 0 : manualCount - 1 }
+        let adjacentOrder = adjacent.readingOrder(manualColumn: nextColumn, manualCount: manualCount)
+        guard let line = direction > 0 ? adjacentOrder.first : adjacentOrder.last else { return nil }
+        return frame(for: line, page: adjacentPage, layout: adjacent, manualColumn: nextColumn)
+    }
+
+    private func frame(for line: ReadingLine, page: Int, layout: ReadingLayout, manualColumn: Int?) -> FocusFrame? {
+        let point = PDFPoint(x: line.rect.cgRect.midX, y: line.rect.cgRect.midY)
+        let padding = max(6, feather / max(overlay.pdfView?.scaleFactor ?? 1, 0.15))
+        guard let rectangle = layout.focusRectangle(at: point, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount, padding: padding) else { return nil }
+        return FocusFrame(page: page, column: line.column, rectangle: rectangle.cgRect, anchor: point)
+    }
+
+    private func currentFrame() -> FocusFrame? {
+        guard let layout = layouts[page], let point = lastPoint,
+              let line = layout.focused(at: point, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first else { return nil }
+        return frame(for: line, page: page, layout: layout, manualColumn: selectedColumn)
+    }
+
+    private func setAnchor(_ frame: FocusFrame) {
+        page = frame.page
+        lastPoint = frame.anchor
+        if selectedColumn != nil, manualColumn != frame.column {
+            updatingAnchor = true
+            manualColumn = frame.column
+            updatingAnchor = false
+        }
+        cache(page - 1)
+        if let count = overlay.pdfView?.document?.pageCount, page + 1 < count { cache(page + 1) }
+    }
+
+    private func centerCurrent() {
+        guard enabled else { return }
+        guard let target = currentFrame() else { cache(page); return }
+        cancelMotion()
+        motionTask = Task { [weak self] in
+            guard let self else { return }
+            do { try await motion.animate(to: target, automatic: false, speed: { self.linesPerMinute }) }
+            catch is CancellationError { }
+            catch { status = error.localizedDescription }
+        }
+    }
+
+    private func cancelMotion() {
+        motionTask?.cancel()
+        motionTask = nil
+        motion.cancel()
+    }
+
+    private func parametersChanged() {
+        let resume = automatic
+        cancelMotion()
+        update()
+        if resume { beginAutomaticReading() }
+        else if keyboard { centerCurrent() }
+    }
+
     private func update() {
-        guard enabled else { return }; guard let layout = layouts[page] else { cache(page); return }
+        guard enabled else { return }
+        guard let layout = layouts[page] else { cache(page); return }
         detectedColumns = layout.columnCount
         status = layout.lines.isEmpty ? L("扫描页面使用区域聚焦；可手动指定阅读栏。") : ""
         if layout.lines.isEmpty {
             let count = manualColumn < 0 ? 1 : max(manualCount, 1)
             let width = layout.bounds.width / Double(count)
             let column = manualColumn < 0 ? 0 : min(max(manualColumn, 0), count - 1)
-            let center = lastPoint?.y ?? layout.bounds.y + layout.bounds.height / 2
-            let region = CGRect(x: layout.bounds.x + Double(column) * width, y: center - Double(below + 1) * 18, width: width, height: Double(above + below + 1) * 18).intersection(layout.bounds.cgRect)
+            let center = lastPoint?.y ?? layout.bounds.cgRect.midY
+            let region = CGRect(x: layout.bounds.x + Double(column) * width, y: center - Double(below + 1) * 18,
+                                width: width, height: Double(above + below + 1) * 18).intersection(layout.bounds.cgRect)
             overlay.highlights = region.isNull ? nil : (page, [region])
-            refreshMask(); overlay.needsDisplay = true; return
+        } else if let frame = currentFrame() {
+            overlay.highlights = (frame.page, [frame.rectangle])
+            overlay.highlightColumn = frame.column
+            overlay.readingAnchor = frame.anchor
         }
-        let point = lastPoint ?? layout.lines.first.map { PDFPoint(x: $0.rect.x + 2, y: $0.rect.y + 2) } ?? .init(x: 0, y: 0)
-        let target = layout.focused(at: point, above: above, below: below, manualColumn: manualColumn < 0 ? nil : manualColumn, manualCount: manualCount)
-        overlay.highlights = target.isEmpty ? nil : (page, target.map { $0.rect.cgRect.insetBy(dx: -3, dy: -1) })
-        refreshMask(); overlay.needsDisplay = true
+        refreshMask()
     }
 }
 @MainActor final class FocusOverlay: NSView {
     weak var pdfView: PDFView?
     var enabled = false
     var highlights: (Int, [CGRect])?
+    var highlightColumn = 0
+    var viewportRectangle: CGRect?
+    var holeVisibility = 1.0
+    var readingAnchor: PDFPoint?
     var onGeometryChanged: (() -> Void)?
+    var screenRectangleInPDFView: CGRect? {
+        if let viewportRectangle { return viewportRectangle }
+        guard let pdfView, let (index, regions) = highlights,
+              let rectangle = regions.first, let page = pdfView.document?.page(at: index) else { return nil }
+        return pdfView.convert(rectangle, from: page)
+    }
     var screenRegions: [CGRect] {
+        if enabled, let rectangle = viewportRectangle, let pdfView, let window {
+            let visible = rectangle.intersection(pdfView.bounds)
+            guard !visible.isNull else { return [] }
+            return [window.convertToScreen(pdfView.convert(visible, to: nil))]
+        }
         guard enabled, let pdfView, let (index, regions) = highlights, let page = pdfView.document?.page(at: index), let window else { return [] }
         return regions.compactMap { region in
             let visible = pdfView.convert(region, from: page).intersection(pdfView.bounds)

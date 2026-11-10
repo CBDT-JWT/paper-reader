@@ -66,7 +66,7 @@ import PaperCore
         editor = EditorController(library: store.root)
         commands.handler = { [weak self] in self?.run($0) }
         reader.runCommand = { [weak self] in self?.commands.run($0) }
-        reader.view.commandMenu = { [weak commands] in commands?.menuItems([.askAI, .quote, .capture, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .focus, .undoAnnotation, .redoAnnotation, .fit, .exportAnnotated]) ?? [] }
+        reader.view.commandMenu = { [weak commands] in commands?.menuItems([.askAI, .quote, .capture, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .focus, .focusAutomatic, .undoAnnotation, .redoAnnotation, .fit, .exportAnnotated]) ?? [] }
         reader.onCapture = { [weak self] page, rect in
             Task { await self?.capture(page: page, rect: rect) }
         }
@@ -437,7 +437,7 @@ import PaperCore
         guard !isChangingWorkspace else { return }
         if runResearchCommand(command) { return }
         switch command {
-        case .newFolder, .focus, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .askAI, .outline, .noteWindow: break
+        case .newFolder, .focus, .focusAutomatic, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .askAI, .outline, .noteWindow: break
         case .open: openPanel()
         case .openFolder: openWorkspaceAction?()
         case .demo: Task { await openDemo() }

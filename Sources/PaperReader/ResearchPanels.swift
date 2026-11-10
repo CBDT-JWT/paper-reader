@@ -41,6 +41,30 @@ struct MetadataPanel: View {
         catch { self.error = error.localizedDescription }
     }
 }
+struct FocusPlaybackPanel: View {
+    @ObservedObject var focus: FocusController
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L("聚焦设置")).font(Design.body).fontWeight(.medium)
+            Text(L("柔边矩形包含当前行与上下文。单击固定，↑/↓移动，再次单击跟随鼠标。Esc 退出。"))
+                .font(Design.small).foregroundStyle(.secondary)
+            Toggle(L("自动阅读"), isOn: $focus.automatic)
+            HStack {
+                Text(L("速度"))
+                Slider(value: $focus.linesPerMinute, in: 5...120, step: 5)
+                Text(L("每分钟 \(Int(focus.linesPerMinute)) 行")).font(Design.small).monospacedDigit().fixedSize()
+            }
+            Stepper(L("上方行数：\(focus.above)"), value: $focus.above, in: 0...10)
+            Stepper(L("下方行数：\(focus.below)"), value: $focus.below, in: 0...10)
+            HStack { Text(L("边缘柔化")); Slider(value: $focus.feather, in: 2...30) }
+            HStack { Text(L("遮罩强度")); Slider(value: $focus.opacity, in: 0.1...0.8) }
+            Toggle(L("锁定阅读行（↑ / ↓移动）"), isOn: $focus.keyboard)
+            Text(L("自动阅读按栏前进。上下箭头暂停播放并移动，切换应用后自动暂停。"))
+                .font(Design.small).foregroundStyle(.secondary)
+        }.font(Design.body)
+    }
+}
+
 struct ReadingToolsPanel: View {
     @ObservedObject var annotations: AnnotationController
     @ObservedObject var focus: FocusController
@@ -54,12 +78,7 @@ struct ReadingToolsPanel: View {
             }
             HStack { Button(L("撤销批注")) { model.commands.run(.undoAnnotation) }; Button(L("重做批注")) { model.commands.run(.redoAnnotation) } }
             Divider()
-            Text(L("聚焦设置")).font(Design.body).fontWeight(.medium)
-            Text(L("整屏变暗。单击锁定阅读行，↑/↓移动；再次单击跟随鼠标。Esc 退出。")).font(.system(size: 12)).foregroundStyle(.secondary)
-            Stepper(L("上方行数：\(focus.above)"), value: $focus.above, in: 0...10)
-            Stepper(L("下方行数：\(focus.below)"), value: $focus.below, in: 0...10)
-            HStack { Text(L("遮罩强度")); Slider(value: $focus.opacity, in: 0.1...0.8) }
-            Toggle(L("锁定阅读行（↑ / ↓移动）"), isOn: $focus.keyboard)
+            FocusPlaybackPanel(focus: focus)
             Picker(L("阅读栏"), selection: $focus.manualColumn) {
                 Text(L("自动识别")).tag(-1)
                 ForEach(0..<focus.manualCount, id: \.self) { Text(L("第 \($0 + 1) 栏")).tag($0) }

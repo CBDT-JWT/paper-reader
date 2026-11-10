@@ -206,6 +206,7 @@ import PaperCore
             try check(layout.columnCount == 2, "Real PDFKit text extraction identified the fixture's two columns")
             let focusLines = layout.focused(at: .init(x: 80, y: 595), above: 1, below: 2)
             try check(!focusLines.isEmpty && focusLines.allSatisfy { $0.rect.cgRect.maxX < 310 }, "Focus window on a real PDF stays in the left column")
+            checks += try await FocusSelfTest.run(reader: model.reader, layout: layout, output: export)
             if ProcessInfo.processInfo.environment["PAPER_READER_SKIP_INTERACTIVE_FOCUS"] == "1" {
                 print("SKIPPED: foreground activation and full-screen focus window checks (explicit noninteractive validation mode)")
             } else {
@@ -223,9 +224,11 @@ import PaperCore
                 model.reader.focus.overlay.onMove?(.init(x: 400, y: 595), 0)
                 try check(model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1 == pinned, "Clicking pins the current PDF line against mouse movement")
                 model.reader.focus.step(1)
+                try await eventually { !model.reader.focus.isMoving && model.reader.focus.overlay.highlights?.1 != pinned }
                 try check(model.reader.focus.overlay.highlights?.1 != pinned, "Arrow navigation advances a pinned line in reading order")
                 model.reader.focus.togglePin(at: .init(x: 400, y: 595), page: 0)
-                try check(!model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1.allSatisfy { $0.minX > 300 } == true, "Clicking again follows the mouse in the right column only")
+                let leftColumnEdge = layout.lines.filter { $0.column == 0 }.map { $0.rect.cgRect.maxX }.max() ?? 300
+                try check(!model.reader.focus.keyboard && model.reader.focus.overlay.highlights?.1.allSatisfy { $0.minX > leftColumnEdge } == true, "Clicking again follows the mouse in the right column only")
                 model.reader.focus.keyboard = true
                 let visibleHoles = model.reader.focus.overlay.highlights
                 model.reader.focus.overlay.highlights = nil

@@ -117,9 +117,9 @@ private struct ReaderPane: View {
     private func readerToolbar(compact: Bool) -> some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
-                tool(.previousPage)
+                if !compact { tool(.previousPage) }
                 Text("\(reader.page + 1) / \(reader.pageCount)").font(Design.small).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 46)
-                tool(.nextPage)
+                if !compact { tool(.nextPage) }
             }.fixedSize()
             Spacer(minLength: 8)
             if !compact {
@@ -133,7 +133,7 @@ private struct ReaderPane: View {
             if compact {
                 Menu {
                     Button(L("搜索原文")) { showSearch.toggle() }
-                    ForEach([CommandID.quote, .zoomIn, .zoomOut, .fit, .outline, .metadata, .askAI]) { RegisteredCommandButton(registry: model.commands, id: $0) }
+                    ForEach([CommandID.previousPage, .nextPage, .quote, .zoomIn, .zoomOut, .fit, .outline, .metadata, .askAI]) { RegisteredCommandButton(registry: model.commands, id: $0) }
                 }
                 label: { Image(systemName: "ellipsis").frame(width: 30, height: 30) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             }
@@ -149,15 +149,29 @@ private struct ReaderPane: View {
 private struct FocusToggleButton: View {
     @ObservedObject var focus: FocusController
     @ObservedObject var registry: CommandRegistry
+    @State private var playbackSettings = false
     var body: some View {
-        Button { registry.run(.focus) } label: {
-            Label(L("聚焦"), systemImage: CommandID.focus.symbol).font(Design.body).padding(.horizontal, 9).frame(height: 30)
-                .foregroundStyle(focus.enabled ? Color.accentColor : .primary)
-                .background(focus.enabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
-        }.buttonStyle(.plain).fixedSize().accessibilityIdentifier("reader.focus")
-            .help(L("全屏暗场聚焦") + (registry.shortcuts[.focus].map { " (\($0.display))" } ?? ""))
-            .accessibilityLabel(L("全屏暗场聚焦"))
-            .accessibilityAddTraits(focus.enabled ? [.isSelected] : [])
+        HStack(spacing: 2) {
+            Button { registry.run(.focus) } label: {
+                Label(L("聚焦"), systemImage: CommandID.focus.symbol).font(Design.body).padding(.horizontal, 9).frame(height: 30)
+                    .foregroundStyle(focus.enabled ? Color.accentColor : .primary)
+                    .background(focus.enabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
+            }.buttonStyle(.plain).fixedSize().accessibilityIdentifier("reader.focus")
+                .help(L("全屏暗场聚焦") + (registry.shortcuts[.focus].map { " (\($0.display))" } ?? ""))
+                .accessibilityLabel(L("全屏暗场聚焦"))
+                .accessibilityAddTraits(focus.enabled ? [.isSelected] : [])
+            if focus.enabled {
+                Button { registry.run(.focusAutomatic) } label: {
+                    Image(systemName: focus.automatic ? "pause.fill" : "play.fill")
+                }.buttonStyle(WorkspaceIconStyle(selected: focus.automatic))
+                    .help(L("播放／暂停自动阅读")).accessibilityLabel(L("播放／暂停自动阅读"))
+                    .accessibilityIdentifier("reader.focus.playback")
+                Button { playbackSettings.toggle() } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }.buttonStyle(WorkspaceIconStyle()).help(L("聚焦设置")).accessibilityLabel(L("聚焦设置"))
+                    .popover(isPresented: $playbackSettings) { FocusPlaybackPanel(focus: focus).padding(20).frame(width: 310) }
+            }
+        }.fixedSize()
     }
 }
 

@@ -107,6 +107,7 @@ extension AppModel {
         case .drawLine: reader.captureMode = false; reader.annotations.tool = .line
         case .drawRectangle: reader.captureMode = false; reader.annotations.tool = .rectangle
         case .focus: reader.focus.enabled.toggle()
+        case .focusAutomatic: reader.focus.automatic.toggle()
         case .drawing: reader.captureMode = false; reader.annotations.tool = reader.annotations.tool == .ink ? .select : .ink
         case .laser: reader.captureMode = false; reader.annotations.tool = reader.annotations.tool == .laser ? .select : .laser
         case .undoAnnotation: reader.annotations.undo()

@@ -13,18 +13,20 @@ import QuartzCore
     private var active = false
     private var regions: [CGRect] = []
     private var opacity = 0.48
+    private var feather = 12.0
+    private var holeVisibility = 1.0
     var onEscape: (() -> Void)?
     private(set) var screenCount = 0
     var diagnostic: String {
         "active=\(active) app=\(NSApp.isActive) transition=\(transitioning) owner=\(ownerWindow?.windowNumber ?? -1) ownerActiveSpace=\(ownerWindow?.isOnActiveSpace ?? false) fullscreen=\(ownerWindow?.styleMask.contains(.fullScreen) ?? false) masks=" + windows.map { window in
-            let view = window.contentView as? MaskView
+            let view = window.contentView as? FocusMaskView
             return "[id=\(window.windowNumber) visible=\(window.isVisible) activeSpace=\(window.isOnActiveSpace) frame=\(window.frame) bounds=\(view?.bounds ?? .zero) path=\(view?.maskLayer.path?.boundingBoxOfPath ?? .zero) alpha=\(view?.maskLayer.fillColor?.alpha ?? -1) level=\(window.level.rawValue) key=\(window.isKeyWindow) main=\(window.isMainWindow) parent=\(window.parent?.windowNumber ?? -1)]"
         }.joined(separator: " ")
     }
     var coversEveryScreen: Bool {
         active && NSApp.isActive && !windows.isEmpty && windows.count == NSScreen.screens.count &&
         zip(NSScreen.screens, windows).allSatisfy { screen, window in
-            guard let view = window.contentView as? MaskView,
+            guard let view = window.contentView as? FocusMaskView,
                   let path = view.maskLayer.path, let fill = view.maskLayer.fillColor else { return false }
             return window.isVisible && window.isOnActiveSpace && window.frame == screen.frame && window.ignoresMouseEvents &&
             !window.isKeyWindow && !window.isMainWindow && window.level.rawValue > NSWindow.Level.normal.rawValue &&
@@ -57,14 +59,14 @@ import QuartzCore
             self.onEscape?(); return nil
         }
     }
-    func update(regions: [CGRect], opacity: Double, enabled: Bool, owner: NSWindow?) {
+    func update(regions: [CGRect], opacity: Double, enabled: Bool, owner: NSWindow?, feather: Double = 12, holeVisibility: Double = 1) {
         let ownerChanged = ownerWindow !== owner
         if ownerChanged {
             for window in windows { window.parent?.removeChildWindow(window) }
             ownerWindow = owner; transitioning = false
         }
-        guard self.regions != regions || self.opacity != opacity || active != enabled || ownerChanged || (enabled && windows.contains(where: { !$0.isOnActiveSpace })) else { return }
-        self.regions = regions; self.opacity = opacity; active = enabled; refresh()
+        guard self.regions != regions || self.opacity != opacity || self.feather != feather || self.holeVisibility != holeVisibility || active != enabled || ownerChanged || (enabled && windows.contains(where: { !$0.isOnActiveSpace })) else { return }
+        self.regions = regions; self.opacity = opacity; self.feather = feather; self.holeVisibility = holeVisibility; active = enabled; refresh()
     }
     func hide() { active = false; windows.forEach { $0.orderOut(nil) } }
     private func refresh() {
@@ -79,56 +81,28 @@ import QuartzCore
                 window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
                 window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications, .ignoresCycle, .stationary]
                 window.isExcludedFromWindowsMenu = true; window.setAccessibilityElement(false)
-                let view = MaskView(frame: NSRect(origin: .zero, size: screen.frame.size)); window.contentView = view; return window
+                let view = FocusMaskView(frame: NSRect(origin: .zero, size: screen.frame.size)); window.contentView = view; return window
             }
         }
         screenCount = screens.count
         for (screen, window) in zip(screens, windows) {
             if window.frame != screen.frame { window.setFrame(screen.frame, display: false) }
-            guard let view = window.contentView as? MaskView else { continue }
+            guard let view = window.contentView as? FocusMaskView else { continue }
             view.opacity = opacity
+            view.feather = feather
+            view.holeVisibility = holeVisibility
             view.holes = regions.compactMap { rect in
-                let intersection = rect.intersection(screen.frame)
-                return intersection.isNull ? nil : CGRect(x: intersection.minX - screen.frame.minX, y: intersection.minY - screen.frame.minY, width: intersection.width, height: intersection.height)
+                let intersection = rect.insetBy(dx: -feather * 2.5, dy: -feather * 2.5).intersection(screen.frame)
+                return intersection.isNull ? nil : CGRect(x: rect.minX - screen.frame.minX, y: rect.minY - screen.frame.minY, width: rect.width, height: rect.height)
             }
             // Keep the overlay independent: addChildWindow would force the parent's
             // normal window level, placing the mask below menu-bar/full-screen surfaces.
-            view.renderMask(); window.orderFrontRegardless()
+            view.renderMask()
+            if !window.isVisible || !window.isOnActiveSpace { window.orderFrontRegardless() }
         }
     }
     private final class MaskWindow: NSPanel {
         override var canBecomeKey: Bool { false }
         override var canBecomeMain: Bool { false }
-    }
-    private final class MaskView: NSView {
-        var holes: [CGRect] = []
-        var opacity = 0.48
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-        let maskLayer = CAShapeLayer()
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect); wantsLayer = true
-            layer?.addSublayer(maskLayer)
-        }
-        required init?(coder: NSCoder) { fatalError("init(coder:) is unsupported") }
-        override func layout() { super.layout(); renderMask() }
-        func renderMask() {
-            let shape = maskLayer
-            var disjoint: [CGRect] = []
-            for hole in holes {
-                var merged = hole; var remaining = disjoint
-                var again = true
-                while again {
-                    again = false
-                    if let index = remaining.firstIndex(where: { $0.intersects(merged) }) {
-                        merged = merged.union(remaining.remove(at: index)); again = true
-                    }
-                }
-                disjoint = remaining + [merged]
-            }
-            let path = CGMutablePath(); path.addRect(bounds); path.addRects(disjoint)
-            CATransaction.begin(); CATransaction.setDisableActions(true)
-            shape.frame = bounds; shape.fillRule = .evenOdd; shape.fillColor = NSColor.black.withAlphaComponent(opacity).cgColor; shape.path = path
-            CATransaction.commit()
-        }
     }
 }

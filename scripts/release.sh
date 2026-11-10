@@ -35,10 +35,17 @@ if [[ "$MODE" == stable ]]; then
   spctl --assess --type open --context context:primary-signature --verbose "$DMG"
 fi
 (cd build/release && shasum -a 256 "${DMG:t}" > SHA256SUMS.txt)
-ARGS=(--repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$NOTES" --draft)
+PUBLISH_NOTES="$PWD/build/release/release-notes.md"
+cp "$NOTES" "$PUBLISH_NOTES"
+if [[ "$MODE" == stable ]]; then
+  print '\nDistribution: Developer ID signed, Apple notarized, and Gatekeeper assessed. Updates and their feed are signed with the Paper Reader Ed25519 key.' >> "$PUBLISH_NOTES"
+else
+  print '\nDistribution: development preview with an ad-hoc signature. This build is not Developer ID signed or Apple notarized; macOS may block opening it. It is excluded from the stable update feed.' >> "$PUBLISH_NOTES"
+fi
+ARGS=(--repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$PUBLISH_NOTES" --draft)
 [[ "$MODE" == preview ]] && ARGS+=(--prerelease)
 if [[ "$EXISTING_DRAFT" == true ]]; then
-  gh release edit "$TAG" --repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$NOTES"
+  gh release edit "$TAG" --repo CBDT-JWT/paper-reader --target "$(git rev-parse HEAD)" --title "Paper Reader $VERSION" --notes-file "$PUBLISH_NOTES"
   gh release upload "$TAG" --repo CBDT-JWT/paper-reader --clobber "$DMG" build/release/SHA256SUMS.txt
 else
   gh release create "$TAG" "$DMG" build/release/SHA256SUMS.txt "${ARGS[@]}"

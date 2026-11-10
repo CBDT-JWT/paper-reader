@@ -9,6 +9,7 @@ if not identity.startswith('Developer ID Application:'):
 identities=subprocess.run(['security','find-identity','-v','-p','codesigning'],capture_output=True,text=True,check=True).stdout
 if f'"{identity}"' not in identities: sys.exit('The requested Developer ID Application identity is not available in the current Keychain.')
 p=plistlib.loads((root/'scripts/Info.plist').read_bytes())
+if not p.get('SURequireSignedFeed') or not p.get('SUVerifyUpdateBeforeExtraction'):sys.exit('Stable releases require signed feeds and archive signature verification before extraction.')
 if len(p.get('SUPublicEDKey',''))!=44:sys.exit('Missing Sparkle public key. Run scripts/release/setup-update-key.sh first.')
 tool=Path(os.environ.get('PAPER_READER_BUILD_DIR',str(Path.home()/'Library/Caches/PaperReader/Build')))/'artifacts/sparkle/Sparkle/bin/generate_keys'
 public=subprocess.run([str(tool),'--account','dev.paperreader.mac','-p'],capture_output=True,text=True,check=True).stdout.strip()

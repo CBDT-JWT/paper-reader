@@ -1,6 +1,16 @@
 # Distribution validation — 2026-11-10
 
-## Current release: 0.4.1 / build 6
+## Current release: 0.4.2 / build 7
+
+Published at https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.2. The public DMG checksum matches the website metadata. Downloaded the archive from GitHub, mounted it read-only, validated app and DMG tickets with stapler, and verified strict recursive code signatures. Gatekeeper accepted both as Notarized Developer ID.
+
+Application notarization `5d14989e-6b60-472f-877c-e2f8f1066033` and DMG notarization `4ff4ecb0-7969-485c-af12-9d932936fc41` were Accepted. The live HTTPS appcast verifies with the production Ed25519 key and announces build 7 with the matching archive URL.
+
+32 Swift tests, 11 editor tests and 85 native integration checks pass in each language. The interactive full-screen checks ran successfully. Workspace integration passes 15 checks per language. [Focus validation](FOCUS_MOTION.md) records geometry, intermediate camera movement, velocity changes and fractional-edge pixel coverage.
+
+Installed the public notarized app in Applications and reopened the current workspace. Through the actual toolbar and popover, enabled focus, started playback, changed speed from 45 to 50, paused and restored 45. The linked note showed saved status and the cloud note showed uploaded status. A stale development instance was closed while replacing the old app to clear the local index contention.
+
+## Historical release: 0.4.1 / build 6
 
 Published at https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.1 and linked from the live HTTPS website. 0.4.1 supersedes 0.4.0 and fixes unsandboxed workspace bookmark reopening across application launches.
 

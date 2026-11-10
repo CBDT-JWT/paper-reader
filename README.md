@@ -4,7 +4,7 @@ macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
-0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[0.4.1 签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
+0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[0.4.2 签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
 
 ## 本轮交互修复
 

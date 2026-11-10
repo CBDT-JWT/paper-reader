@@ -1,5 +1,6 @@
 import AppKit
 import PDFKit
+import UniformTypeIdentifiers
 import PaperCore
 
 /// Runs inside the real app/window/WKWebView, with an explicitly isolated test library.
@@ -25,6 +26,7 @@ import PaperCore
             try await eventually { model.editor.ready }
             metrics["offlineEditorReadyMs"] = milliseconds(launch.duration(to: clock.now))
             checks.append("Real WKWebView loaded bundled Tiptap offline")
+            try check(Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap { NSImage(contentsOf: $0) } != nil, "The packaged application contains a readable native app icon")
             let language = AppLanguage.code
             try check(L("保存笔记") == (language == "en" ? "Save note" : "保存笔记"), "Native commands follow the process system language")
             let webLanguage = try await model.editor.webView.evaluateJavaScript("document.documentElement.lang") as? String
@@ -34,6 +36,23 @@ import PaperCore
             guard let firstID = model.selectedID else { throw Failure(message: "PDF import failed: \(model.error ?? "unknown")") }
             try check(model.reader.pageCount == 3, "PDFKit opened a real three-page PDF")
             metrics["fixtureGenerateImportAndOpenMs"] = milliseconds(opened.duration(to: clock.now))
+            if let list = ProcessInfo.processInfo.environment["PAPER_READER_LAYOUT_FIXTURES"] {
+                struct LocalFixture: Decodable { let name: String; let path: String; let columns: Int }
+                let fixtures = try JSONDecoder().decode([LocalFixture].self, from: Data(contentsOf: URL(fileURLWithPath: list)))
+                for fixture in fixtures {
+                    let url = URL(fileURLWithPath: fixture.path)
+                    for page in 0..<3 {
+                        let started = clock.now
+                        let extracted = try await Task.detached { try PDFServices.layout(url: url, page: page) }.value
+                        print("LOCAL LAYOUT: \(fixture.name) page=\(page + 1) columns=\(extracted.columnCount) lines=\(extracted.lines.count) ms=\(milliseconds(started.duration(to: clock.now)))")
+                        try check(extracted.columnCount == fixture.columns && extracted.lines.allSatisfy { $0.rect.height >= 2 && !$0.text.contains("<latexit") }, "Local paper layout excludes hidden vector metadata and identifies body columns: \(fixture.name), page \(page + 1)")
+                        for line in extracted.lines.filter({ $0.column >= 0 && $0.text.count > 40 && $0.rect.width > 120 }).prefix(10) {
+                            let focused = extracted.focused(at: .init(x: line.rect.cgRect.midX, y: line.rect.cgRect.midY), above: 1, below: 2)
+                            guard !focused.isEmpty, focused.allSatisfy({ $0.column == line.column }) else { throw Failure(message: "Local focus crossed the body column: source id=\(line.id) column=\(line.column) rect=\(line.rect) targets=\(focused.map { "id=\($0.id) col=\($0.column) rect=\($0.rect)" })") }
+                        }
+                    }
+                }
+            }
             let originalPDF = try Data(contentsOf: model.store.pdfURL(firstID))
             let markdown = """
             # Research notebook
@@ -142,12 +161,52 @@ import PaperCore
             try FileManager.default.createDirectory(at: export, withIntermediateDirectories: true)
             try await model.store.exportNote(firstID, to: export)
             try check(FileManager.default.fileExists(atPath: export.appendingPathComponent(firstID.uuidString).appendingPathComponent(imagePath).path), "Markdown package export includes its relative image assets")
+            // Exercise the same actor-backed operations used by tree menus and drops.
+            let rootFolder = LibraryFolder(name: "Folder 10"), otherFolder = LibraryFolder(name: "Folder 2")
+            let childFolder = LibraryFolder(name: "Nested", parentID: rootFolder.id)
+            for folder in [rootFolder, otherFolder, childFolder] { guard await model.organizeLibrary(.createFolder(folder)) else { throw Failure(message: "Folder creation failed") } }
+            try check(model.folders.count == 3, "Native library model creates persistent parent and child folders")
+            guard handleLibraryDrop([LibraryDragItem(id: firstID, folder: false).provider], folderID: childFolder.id, model: model) else { throw Failure(message: "Paper drop rejected") }
+            try await eventually { model.currentPaper?.folderID == childFolder.id }
+            try check(model.currentPaper?.folderID == childFolder.id, "Moving a paper updates the tree and retains the current document")
+            let tree = try unwrap(findOutline(in: model.reader.view.window?.contentView), "Native file tree missing")
+            let coordinator = try unwrap(tree.dataSource as? NativeLibraryOutline.Coordinator, "Native tree data source missing")
+            coordinator.update(model)
+            let node = try unwrap((0..<tree.numberOfRows).compactMap { tree.item(atRow: $0) as? NativeLibraryOutline.Item }.first { $0.id == firstID }, "Current paper row missing")
+            let writer = try unwrap(coordinator.outlineView(tree, pasteboardWriterForItem: node) as? NSPasteboardItem, "Native drag writer missing")
+            let pasteboard = NSPasteboard.withUniqueName(); pasteboard.writeObjects([writer])
+            let dragData = try unwrap(pasteboard.data(forType: .init(UTType.libraryItem.identifier)), "Native pasteboard payload missing")
+            try check(try JSONDecoder().decode(LibraryDragItem.self, from: dragData).id == firstID, "Real NSOutlineView drag writers put the stable paper identity onto a native pasteboard")
+            pasteboard.clearContents()
+            let nodeRow = tree.row(forItem: node)
+            if let index = model.papers.firstIndex(where: { $0.id == firstID }) {
+                let previous = model.papers[index].readingPoint
+                model.papers[index].readingPoint = .init(x: 20, y: 400); coordinator.update(model)
+                try check((tree.item(atRow: nodeRow) as? NativeLibraryOutline.Item) === node, "Reading-state updates preserve native tree row identity instead of cancelling drag sources")
+                model.papers[index].readingPoint = previous; coordinator.update(model)
+            }
+            guard await model.organizeLibrary(.renameFolder(rootFolder.id, "Research")), handleLibraryDrop([LibraryDragItem(id: childFolder.id, folder: true).provider], folderID: otherFolder.id, model: model) else { throw Failure(message: "Folder rename/drop failed") }
+            try await eventually { model.folders.first { $0.id == childFolder.id }?.parentID == otherFolder.id }
+            try check(model.folders.first { $0.id == rootFolder.id }?.name == "Research" && model.folders.first { $0.id == childFolder.id }?.parentID == otherFolder.id, "Folder rename and nesting persist through production model actions")
+            let beforeName = try unwrap(model.currentPaper?.displayFileName, "Filename missing")
+            guard await model.organizeLibrary(.renamePaper(firstID, "paper2.pdf")), await model.organizeLibrary(.renamePaper(secondID, "paper10.pdf")) else { throw Failure(message: "File rename failed") }
+            try check(LibrarySort.filename.ordered(model.papers).map(\.id) == [firstID, secondID], "Filename sorting uses natural numeric order in the actual library")
+            let reloaded = try await model.store.papers()
+            try check(reloaded.first { $0.id == firstID }?.displayFileName == "paper2.pdf", "Logical filenames survive a manifest reload independently of PDF storage names")
+            guard await model.organizeLibrary(.removeFolder(otherFolder.id)), await model.organizeLibrary(.removeFolder(childFolder.id)), await model.organizeLibrary(.removeFolder(rootFolder.id)) else { throw Failure(message: "Folder removal failed") }
+            try check(model.folders.isEmpty && model.currentPaper?.folderID == nil, "Removing folders promotes children and papers without deleting their contents")
+            _ = await model.organizeLibrary(.renamePaper(firstID, beforeName))
+            let organizedNote = try await model.store.readNote(firstID)
+            try check(try Data(contentsOf: model.store.pdfURL(firstID)) == originalPDF && organizedNote.markdown.contains("Persisted from the live WebKit editor."), "Tree organization preserves the original PDF, linked note and stable identity")
             // Real PDFKit extraction and sidecar annotation controller/export paths.
             let originalURL = model.store.pdfURL(firstID)
             let layout = try await Task.detached { try PDFServices.layout(url: originalURL, page: 0) }.value
             try check(layout.columnCount == 2, "Real PDFKit text extraction identified the fixture's two columns")
             let focusLines = layout.focused(at: .init(x: 80, y: 595), above: 1, below: 2)
             try check(!focusLines.isEmpty && focusLines.allSatisfy { $0.rect.cgRect.maxX < 310 }, "Focus window on a real PDF stays in the left column")
+            NSApp.activate(ignoringOtherApps: true); model.reader.view.window?.makeKeyAndOrderFront(nil)
+            try await eventually { NSApp.isActive }
+            if let window = model.reader.view.window { try await setFullScreen(false, window: window) }
             model.reader.goToPage(0); model.reader.focus.enabled = true
             try await eventually { model.reader.focus.detectedColumns == 2 }
             try check(model.reader.focus.overlay.highlights?.1.isEmpty == false, "Native focus overlay uses cached line regions")
@@ -168,6 +227,18 @@ import PaperCore
             try check(model.reader.focus.screenMask.coversEveryScreen, "Dark field remains active when the pinned line is outside the viewport")
             model.reader.focus.overlay.highlights = visibleHoles
             model.reader.focus.overlay.onGeometryChanged?()
+            // Real macOS full-screen transitions, not a resized frame or a mocked flag.
+            let workspace = try unwrap(model.reader.view.window, "Workspace window missing")
+            try await setFullScreen(true, window: workspace)
+            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+            checks.append("Dark field remains on the active Space after entering native full screen")
+            model.reader.focus.enabled = false
+            model.commands.run(.focus)
+            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+            checks.append("The shared toolbar command enables dark field while already in native full screen")
+            try await setFullScreen(false, window: workspace)
+            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+            checks.append("Dark field returns to the normal workspace after leaving native full screen")
             model.reader.focus.enabled = false
             let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 48, y: 210, width: 516, height: 128))
             model.reader.annotations.add([record]); model.reader.annotations.undo()
@@ -258,11 +329,29 @@ import PaperCore
             print("INTEGRATION PASS: \(checks.count) checks. Report: \(output.path)")
             Darwin.exit(0)
         } catch {
+            print("Focus diagnostics: \(model.reader.focus.screenMask.diagnostic)")
             if let details = try? await model.editor.call("diagnostics") { print("Editor diagnostics: \(details)") }
             try? writeResult(output, success: false, checks: checks, metrics: metrics, error: error.localizedDescription)
             print("INTEGRATION FAIL: \(error.localizedDescription). Report: \(output.path)")
             Darwin.exit(1)
         }
+    }
+    private static func findOutline(in view: NSView?) -> NSOutlineView? {
+        if let tree = view as? NSOutlineView { return tree }
+        for child in view?.subviews ?? [] { if let tree = findOutline(in: child) { return tree } }
+        return nil
+    }
+    @MainActor private final class TransitionState { var completed = false }
+    private static func setFullScreen(_ enabled: Bool, window: NSWindow) async throws {
+        guard window.styleMask.contains(.fullScreen) != enabled else { return }
+        let state = TransitionState()
+        let name = enabled ? NSWindow.didEnterFullScreenNotification : NSWindow.didExitFullScreenNotification
+        let observer = NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in
+            MainActor.assumeIsolated { state.completed = true }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        window.toggleFullScreen(nil)
+        try await eventually { state.completed }
     }
     private static func eventually(_ condition: () async throws -> Bool) async throws {
         for _ in 0..<150 {

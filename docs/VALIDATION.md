@@ -1,5 +1,7 @@
 # 0.2 验证记录
 
+本文保留早期版本验证历史。当前 0.2.1 的全屏、文件树、IEEE 聚焦和图标验证见 [本轮记录](WORKSPACE_FIXES.md)。
+
 日期：2026-11-10。Apple Silicon；macOS 27.3 (26C5035r)，Xcode 27、Swift 6.4、Node 26.4。每次集成使用单独的 `/tmp/PaperReader-Integration.*` 文献库，未将用户真实论文发送给测试模型。
 
 ## 可复现自动化检查

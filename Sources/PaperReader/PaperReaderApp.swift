@@ -76,7 +76,11 @@ struct PaperReaderApp: App {
     weak var model: AppModel?
     private var terminating = false
     private var pendingFiles: [URL] = []
-    func applicationDidFinishLaunching(_ notification: Notification) { NSApp.setActivationPolicy(.regular); NSApp.activate(ignoringOtherApps: true) }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: url) { NSApp.applicationIconImage = icon }
+        NSApp.activate(ignoringOtherApps: true)
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating, let model else { return .terminateNow }
         terminating = true

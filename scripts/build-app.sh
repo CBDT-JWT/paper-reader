@@ -25,6 +25,8 @@ if [[ ! -d "$CORE_RESOURCES" ]]; then CORE_RESOURCES="$BIN_DIR/PaperReader_Paper
 for LANGUAGE in en zh-Hans; do
   ditto --norsrc --noextattr "$CORE_RESOURCES/$LANGUAGE.lproj" "$STAGING_APP/Contents/Resources/$LANGUAGE.lproj"
 done
+if [[ ! -f assets/AppIcon.icns || assets/AppIcon.png -nt assets/AppIcon.icns ]]; then scripts/build-icon.sh; fi
+cp assets/AppIcon.icns "$STAGING_APP/Contents/Resources/AppIcon.icns"
 cp scripts/Info.plist "$STAGING_APP/Contents/Info.plist"
 xattr -cr "$STAGING_APP"
 codesign --force --deep --sign - "$STAGING_APP"

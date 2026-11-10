@@ -150,14 +150,18 @@ struct NativeLibraryOutline: NSViewRepresentable {
             if let data = board.data(forType: .init(UTType.libraryItem.identifier)) {
                 return handleLibraryDrop([NSItemProvider(item: data as NSData, typeIdentifier: UTType.libraryItem.identifier)], folderID: target?.id, model: model)
             }
-            let urls = (board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []).filter { $0.pathExtension.lowercased() == "pdf" }
+            let urls = (board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [])
             guard !urls.isEmpty else { return false }
-            Task { await model.importPDFs(urls, into: target?.id) }; return true
+            Task {
+                let directory = await Task.detached { urls.first { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true } }.value
+                if let directory { model.openWorkspaceURLAction?(directory) }
+                else { await model.importPDFs(urls.filter { $0.pathExtension.lowercased() == "pdf" }, into: target?.id) }
+            }; return true
         }
         func menu(for row: Int) -> NSMenu {
             let menu = NSMenu()
             guard let item = outline?.item(atRow: row) as? Item else {
-                menu.addItem(action(L("新建文件夹…")) { [model] in model.createFolder() }); return menu
+                for entry in model.commands.menuItems([.openFolder]) { menu.addItem(entry) }; menu.addItem(action(L("新建文件夹…")) { [model] in model.createFolder() }); return menu
             }
             if let folder = item.folder {
                 menu.addItem(action(L("新建子文件夹…")) { [model] in model.createFolder(parentID: folder.id) })
@@ -176,7 +180,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
             if let folder = item.folder { menu.addItem(action(L("移除文件夹")) { [model] in model.removeFolder(folder) }) }
             if let paper = item.paper {
                 menu.addItem(action(L("在 Finder 中显示文件")) { [model] in NSWorkspace.shared.activateFileViewerSelecting([model.store.pdfURL(paper.id), model.store.noteURL(paper.id)]) })
-                menu.addItem(action(L("移到废纸篓")) { [model] in Task { await model.trashPaper(paper) } })
+                menu.addItem(action(paper.sourceRelativePath == nil ? L("移到废纸篓") : L("从工作区移除（保留原 PDF）")) { [model] in Task { await model.trashPaper(paper) } })
             }
             return menu
         }

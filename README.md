@@ -1,10 +1,10 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.3.0 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.0 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
-0.3.0 新增 Sparkle 在线更新接口、应用菜单“检查更新”和自动检查设置、拖拽安装 DMG、双语官网及可重复的发布流程。**正式 DMG 已使用 Developer ID 签名并通过 Apple 公证，支持拖入 Applications 安装；应用和 DMG 的公证票据及 Gatekeeper 验证均已通过。** [直接下载 0.3.0（Apple Silicon）](https://github.com/CBDT-JWT/paper-reader/releases/download/v0.3.0/PaperReader-0.3.0-arm64.dmg)。 发布操作和凭证边界见 [发布文档](docs/RELEASING.md)，本轮实际测试与跳过项见 [0.3.0 验证记录](docs/RELEASE_VALIDATION.md)。
+0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；当前下载和公证状态以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
 
 ## 本轮交互修复
 
@@ -56,6 +56,15 @@ cd ..
 
 首次体验可在“文件 / File”菜单打开示例论文。示例 PDF 本地生成，不下载第三方论文。
 
+## 打开文件夹与 iCloud Drive
+
+- **文件 → 打开文件夹…（Cmd+Shift+O）**，或文件树顶部的文件夹按钮：选择已有目录，递归显示 PDF 和子文件夹。也可把目录拖入文件树。PDF 原地打开，不重复导入；笔记和资源放在该目录的隐藏 `.paper-reader` 文件夹。文件名排序保持原有自然排序。
+- **Paper Reader → 设置… → 文献库与 iCloud → 启用 iCloud Drive…**：在 iCloud Drive 中新建并选择一个专用文件夹。首次会复制当前库的论文、笔记、图片、来源和批注，原库保留；选择已有工作区则直接打开，不自动合并另一文献库。
+- 另一台 Mac 安装本应用后，用“打开文件夹”选择同一 iCloud Drive 目录。两台 Mac 需使用同一 Apple 账户并开启云盘，文件可用性与上传进度由 macOS 管理。侧栏显示当前笔记的上传状态；这不代表整个库都已上传。
+- 在文件夹工作区重命名或移动 PDF/文件夹会修改真实文件路径；论文 UUID 和关联笔记保持不变。移除论文仅将其应用数据放入工作区回收站，保留原 PDF。为保护已有内容，非空的真实文件夹不能直接移除。
+- 已下载文件可离线阅读和记录。每次编辑先写独立的本机草稿日志，再尝试写入工作区；重开时恢复未保存草稿，若文件也变过，则先备份双方内容再选择版本。检测到笔记版本冲突会保留副本；这不是实时协同编辑器，不提供自动逐段合并。
+- 要返回原库，在上述设置中点击 **打开原本机文献库**。不要只备份 SQLite：备份所选工作区整个目录（包含 `.paper-reader`），并另外备份本机 `DeviceData` 可保留阅读位置和对话。
+
 ## 阅读聚焦
 
 从阅读工具栏的“聚焦”按钮或“阅读”菜单开启，默认快捷键 **Cmd+Option+F**。暗场覆盖所有连接屏幕的完整区域，包括文献树、笔记、菜单栏和 Dock；仅当前 PDF 的目标文字区域透亮。遮罩只绘制半透明黑色，不读取或录制屏幕内容，也不拦截鼠标。
@@ -85,6 +94,7 @@ AI 提议修改后，笔记保持原样；用户查看前后差异并明确应�
 | 操作 | 默认键 |
 | --- | --- |
 | 导入 / 保存笔记 | Cmd+O / Cmd+S |
+| 打开已有文件夹 | Cmd+Shift+O |
 | 截图 / 摘录 | Cmd+Option+S / Cmd+Shift+E |
 | 阅读聚焦 / 选中文字高亮 | Cmd+Option+F / Cmd+Shift+H |
 | 询问 AI | Cmd+Option+G |
@@ -101,29 +111,29 @@ AI 提议修改后，笔记保持原样；用户查看前后差异并明确应�
 ```text
 Library/
   library.sqlite                 可重建 SQLite 索引，WAL
+  DeviceData/                    本机阅读位置、AI 对话和 Drafts 草稿日志
   folders.json                   文件夹组织结构
   .Trash/<paper UUID>/           可恢复的整篇文献目录
   <paper UUID>/
-    paper.json                   UUID、逻辑文件名、元数据、文件夹、阅读位置
+    paper.json                   UUID、文件名、元数据、文件夹、可选源文件相对路径
     paper.pdf                    导入原件的副本
     note.md                      标准 UTF-8 Markdown
     note.previous.md             上一个完整版本
     note-conflict-<UUID>.md       冲突时保留自己的版本
     sources.json                 摘录/截图来源页和 PDF 坐标
     annotations.json             独立批注
-    conversation.json            本地对话历史
     assets/<UUID>.png
 ```
 
-截图、笔记、批注和 AI 编辑不修改原始 PDF。带批注 PDF 导出为新文件，PDFKit 注释图在独立辅助进程的主线程构建和序列化，避免阻塞阅读界面。移动外部原件不影响导入副本；重命名/整理文件夹不改变论文 UUID。
+截图、笔记、批注和 AI 编辑不修改原始 PDF。带批注 PDF 导出为新文件，PDFKit 注释图在独立辅助进程的主线程构建和序列化，避免阻塞阅读界面。默认导入保留原件；文件夹工作区则直接链接原 PDF。应用内重命名/整理文件夹不改变论文 UUID。
 
-350 ms 自动保存，切换/退出/导出前同步编辑器。保存使用原子替换和版本校验；每两秒检查当前笔记的外部变更，无本地待保存内容时重新载入，有冲突则保留副本并停止自动覆盖。尚无图形合并器：在 Finder 比较冲突文件、合并后重新打开论文。退出后可用 `note.previous.md` 恢复上一版本。
+独立本机草稿日志加 350 ms 工作区自动保存，切换/退出/导出前同步编辑器。保存使用原子替换和版本校验；每两秒检查当前笔记的外部变更，无本地待保存内容时重新载入，有冲突则保留副本并停止自动覆盖。尚无图形合并器：在 Finder 比较冲突文件、合并后重新打开论文。退出后可用 `note.previous.md` 恢复上一版本。
 
 备份应退出应用后复制整个 Library。丢失 SQLite 索引可由 `paper.json` 重建；不要删掉 manifest。文献树菜单可恢复应用回收站中的论文。笔记导出生成含 `.md`、相对资源和来源索引的目录，不复制论文 PDF。`paperreader://` 来源链接需要本应用和对应文献索引。
 
 ## 验证与限制
 
-运行 `./scripts/test.sh`，在隔离临时库中执行 19 项 Swift 测试、11 项编辑器测试，以及中英文各 60 项真实原生/WKWebView 集成检查；并运行依赖审计。`PAPER_READER_LIVE_TESTS=1 ./scripts/test.sh` 额外连接真实 Crossref 与已登录 Codex，发送的仅为合成测试文档。详见 [验证记录](docs/VALIDATION.md) 和 [架构](docs/ARCHITECTURE.md)。
+运行 `./scripts/test.sh`，在隔离临时库中执行 29 项 Swift 测试、11 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查；并运行依赖审计。本轮原生基础检查中英文各 53 项通过，9 项依赖桌面前台激活的聚焦/全屏检查显式跳过。云盘单机测试和未验证范围见 [0.4.0 验证记录](docs/ICLOUD_VALIDATION.md)。`PAPER_READER_LIVE_TESTS=1 ./scripts/test.sh` 额外连接真实 Crossref 与已登录 Codex，发送的仅为合成测试文档。详见 [验证记录](docs/VALIDATION.md) 和 [架构](docs/ARCHITECTURE.md)。
 
 本版的明确边界：
 
@@ -132,8 +142,8 @@ Library/
 - 独立笔记窗口为只读查看；表格是基础编辑。超长表格、极宽代码、复杂公式和所有 Mermaid 类型尚未全面验收。
 - 不含 OCR、加密 PDF 解锁、通用网页检索或 OpenAlex 适配器。扫描件只做区域聚焦。多栏识别不保证任意复杂版式都准确。
 - 云 API 已用真实本地 HTTP/SSE 服务验证协议，尚未使用用户云密钥做实际供应商验收；真实 Codex 的文字生成、模型列表和图像理解已验证。
-- 尚未覆盖百页扫描件、海量文献库、Intel/旧系统、多显示器热插拔的人工验收、断电/磁盘耗尽及多个进程同时编辑同一库。请只用一个正式实例打开同一库。
-- 未公证、未上架；没有把单次示例打开速度当成所有论文首屏一秒内的承诺。
+- 尚未覆盖百页扫描件、海量文献库、Intel/旧系统、多显示器热插拔的人工验收、断电/磁盘耗尽及真实多台 Mac 并发同步。两个独立存储实例的版本冲突已有自动测试；请避免多台设备同时整理同一库的文件夹、元数据和批注。系统冲突版本不会自动合并，建议改完后等待上传再换设备。
+- 已有 Developer ID 签名和 Apple 公证的正式发行版，未上架 Mac App Store。没有把单次示例打开速度当成所有论文首屏一秒内的承诺。
 
 ## 依赖与许可证
 

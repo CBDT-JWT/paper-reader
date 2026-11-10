@@ -1,6 +1,6 @@
 # Architecture
 
-0.2 implements the core workflow across Phases 1–4. README lists deliberately bounded or deferred capabilities; this is not a claim of exhaustive production certification.
+0.4 implements the core workflow across Phases 1–4. README lists deliberately bounded or deferred capabilities; this is not a claim of exhaustive production certification.
 
 ## Module boundaries
 
@@ -43,3 +43,15 @@ Chinese source keys resolve through `L`; generated English/Chinese resources are
 ## Validation strategy
 
 Pure tests cover identity/file safety, coordinate transforms, metadata/citations and two/three-column layouts including spanning blocks. Node tests cover Markdown parse/edit/serialize semantics, source links, math, image sizes and Mermaid source retention. The real app's isolated self-test covers WebKit, PDFKit, whole-screen native window coverage including isOnActiveSpace, real full-screen entry/re-enabling/exit, folder and paper NSItemProvider drop handling, natural sorting, focus pinning, annotated PDF export, diffs/undo, HTTP SSE/tool/image contracts and multipage native print export in both languages. Optional live tests verify Crossref and installed Codex model listing/text/vision. See VALIDATION.md for exact evidence and limits.
+
+## Folder workspaces and iCloud Drive (0.4)
+
+`WorkspaceLocation` owns a user-selected security-scoped folder bookmark. It does not assume that a hardcoded iCloud path is authoritative: resource ubiquity is checked on the selection/ancestors. `NSOpenPanel` is the normal authorization surface. No CloudKit container or iCloud entitlement is required to coordinate ordinary user-selected iCloud Drive documents. The known Mobile Documents path is only a picker hint.
+
+`LibraryStore.documentsRoot` links discovered PDFs through a contained, symlink-rejecting relative path. The shared `.paper-reader/<UUID>` directory holds manifests, notes, assets and sidecars; migrated managed PDFs may remain there as `paper.pdf`. `WorkspaceLibrary` preserves IDs through app moves and a device-local resource-identifier map for Finder moves. `LibraryOrganization` performs physical moves only in folder workspaces and refuses overwrites/cycles/nonempty folder removal. External originals survive removal from the workspace index.
+
+SQLite is always in local Application Support for selected workspaces, partitioned by folder-path hash. Reading positions and conversation files live in local `DeviceData`; shared manifests contain no device reading position. Old conversations migrate locally when switching, and the cloud copy excludes conversations, databases and drafts. The original local library remains available.
+
+`CoordinatedFiles` owns NSFileCoordinator read/write/move operations off MainActor, checks evicted/legacy placeholders, and never treats a known pending download as an empty note or metadata array. The presenter and a coalesced polling fallback rescan folder changes and reload clean notes. Note compare-and-write happens inside one coordinated write. NSFileVersion note conflict data is copied to ordinary Markdown files before resolving its system flags. Folder/annotation/metadata conflicts are not an automatic CRDT merge.
+
+`NoteDraftJournal` is an independent actor on local storage, so a stalled cloud coordinator cannot block draft staging. Monotonic sequence numbers reject reordered stages; successful note writes clear only matching drafts. Reopening recovers a draft against its base revision, or archives both sides before the user chooses. Switching freezes WebKit mutations, drains document jobs and saves, prepares the destination, then replaces the model. Failed preparation leaves the previous workspace usable. The bootstrap has recovery buttons if a saved folder is unavailable.

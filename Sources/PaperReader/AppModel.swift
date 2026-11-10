@@ -4,6 +4,19 @@ import UniformTypeIdentifiers
 import PaperCore
 
 @MainActor final class AppModel: ObservableObject {
+    var openWorkspaceURLAction: ((URL) -> Void)?
+    var openWorkspaceAction: (() -> Void)?
+    var workspaceIsCloud = false
+    @Published var cloudStatus = L("等待 iCloud Drive")
+    private var activeDocumentJobs = 0
+    private var waitingForPaper: UUID?
+    private var workspacePresenter: WorkspacePresenter?
+    private var isRefreshingWorkspace = false
+    var isChangingWorkspace = false
+    var canLeaveWorkspace: Bool { pending.isEmpty && blocked.isEmpty }
+    let drafts: NoteDraftJournal
+    private var draftSequence: UInt64 = 0
+    private var draftTasks: [UUID: Task<Void, Error>] = [:]
     let store: LibraryStore
     let reader = PDFReaderController()
     let editor: EditorController
@@ -48,6 +61,7 @@ import PaperCore
     }
     init(store: LibraryStore, commands: CommandRegistry) {
         self.store = store; self.commands = commands
+        drafts = NoteDraftJournal(deviceDirectory: store.deviceDirectory)
         ai = AIController(store: store)
         editor = EditorController(library: store.root)
         commands.handler = { [weak self] in self?.run($0) }
@@ -64,46 +78,82 @@ import PaperCore
         reader.annotations.onError = { [weak self] in self?.error = $0 }
     }
     func start() async {
-        do {
-            papers = try await store.papers()
-            folders = try await store.folders()
-            externalWatcher = Task { [weak self] in
-                while !Task.isCancelled {
-                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
-                    await self?.checkExternalNote()
-                }
+        workspacePresenter = WorkspacePresenter(url: store.documentsRoot ?? store.root) { [weak self] in
+            Task { @MainActor in await self?.refreshWorkspace() }
+        }
+        externalWatcher = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                await self?.refreshWorkspace()
             }
+        }
+        do {
+            papers = try await store.scanWorkspace()
+            folders = try await store.folders()
             let previous = UserDefaults.standard.string(forKey: "lastPaper").flatMap(UUID.init(uuidString:))
             if let id = papers.first(where: { $0.id == previous })?.id ?? papers.first?.id { await select(id) }
         } catch { self.error = error.localizedDescription }
     }
     func select(_ id: UUID) async {
+        guard !isChangingWorkspace else { return }
         let token = UUID(); selectionToken = token; isOpening = true
         await synchronizeEditor()
         await flush()
         guard token == selectionToken else { return }
         do {
             guard let paper = papers.first(where: { $0.id == id }) else { throw LibraryError.missingPaper }
+            let recovered = try await store.recoverCloudNoteVersions(id)
+            if !recovered.isEmpty { error = L("iCloud 冲突版本已保留为独立副本，可在笔记所在文件夹查看。") }
             let snapshot = try await store.readNote(id)
+            var markdown = snapshot.markdown
+            try await draftTasks[id]?.value
+            if let draft = try await drafts.read(id) {
+                if draft.markdown == snapshot.markdown { try await drafts.clear(id, matching: draft.markdown) }
+                else if draft.baseRevision == snapshot.revision { markdown = draft.markdown }
+                else {
+                    let recovery = try await drafts.archive(id, draft: draft, current: snapshot.markdown)
+                    let alert = NSAlert(); alert.messageText = L("发现未保存的本机草稿")
+                    alert.informativeText = L("文件版本与本机草稿不同。两份内容已分别备份，可选择要继续编辑的版本。")
+                    alert.addButton(withTitle: L("恢复本机草稿")); alert.addButton(withTitle: L("使用文件版本"))
+                    alert.addButton(withTitle: L("查看备份"))
+                    let result = alert.runModal()
+                    if result == .alertFirstButtonReturn { markdown = draft.markdown }
+                    else if result == .alertThirdButtonReturn { NSWorkspace.shared.open(recovery) }
+                    try await drafts.clear(id, matching: draft.markdown)
+                }
+            }
             guard token == selectionToken else { return }
             // State callbacks from the old document must not overwrite the new paper's reading position.
             reader.onStateChange = nil
+            let pdf = store.pdfURL(id)
+            if workspaceIsCloud && !FileManager.default.fileExists(atPath: pdf.path) { _ = try? await Task.detached { try CoordinatedFiles.requestDownload(pdf) }.value; throw LibraryError.workspaceDownloading }
+            if await Task.detached(operation: { CoordinatedFiles.needsDownload(pdf) }).value { throw LibraryError.workspaceDownloading }
             try await reader.load(url: store.pdfURL(id), page: paper.page, scale: paper.scale, readingPoint: paper.readingPoint)
             guard token == selectionToken else { return }
             selectedID = id; activeFolderID = paper.folderID; revisions[id] = snapshot.revision; blocked.remove(id)
-            try await editor.setDocument(id: id, markdown: snapshot.markdown)
+            try await editor.setDocument(id: id, markdown: markdown)
+            if markdown != snapshot.markdown { noteChanged(id, markdown: markdown); await flush() }
             try await reader.annotations.load(id)
             await ai.load(id)
             commands.hasPaper = true
             if !ProcessInfo.processInfo.arguments.contains("--self-test") { UserDefaults.standard.set(id.uuidString, forKey: "lastPaper") }
             status = L("已保存到本机")
-        } catch { self.error = error.localizedDescription }
+            waitingForPaper = nil
+        } catch LibraryError.workspaceDownloading {
+            waitingForPaper = id; status = L("iCloud 文件正在下载或暂不可用，请联网后稍候重试。")
+        } catch {
+            if workspaceIsCloud && [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains((error as NSError).code) {
+                waitingForPaper = id; status = L("iCloud 文件正在下载或暂不可用，请联网后稍候重试。")
+            } else { waitingForPaper = nil; self.error = error.localizedDescription }
+        }
         guard token == selectionToken else { return }
         reader.onStateChange = { [weak self] page, scale in self?.remember(page: page, scale: scale) }
         isOpening = false
     }
     @discardableResult
     func importPDFs(_ urls: [URL], into folderID: UUID? = nil) async -> [Paper] {
+        guard !isChangingWorkspace else { return [] }
+        activeDocumentJobs += 1; defer { activeDocumentJobs -= 1 }
         var imported: [Paper] = []
         for url in urls {
             let access = url.startAccessingSecurityScopedResource()
@@ -185,7 +235,14 @@ import PaperCore
         } catch { self.error = error.localizedDescription }
     }
     private func noteChanged(_ id: UUID, markdown: String) {
-        guard !blocked.contains(id), revisions[id] != nil else { return }
+        guard let revision = revisions[id] else { return }
+        draftSequence += 1
+        let sequence = draftSequence
+        draftTasks[id] = Task { [weak self, drafts] in
+            do { try await drafts.stage(id, markdown: markdown, baseRevision: revision, sequence: sequence) }
+            catch { self?.error = error.localizedDescription; throw error }
+        }
+        guard !blocked.contains(id) else { return }
         pending[id] = markdown; status = L("正在保存…")
         debounce?.cancel()
         debounce = Task { [weak self] in
@@ -209,11 +266,15 @@ import PaperCore
                 pending.removeValue(forKey: id)
                 guard let revision = revisions[id], !blocked.contains(id) else { continue }
                 do {
+                    try await draftTasks[id]?.value
                     revisions[id] = try await store.saveNote(id, markdown: markdown, expectedRevision: revision)
+                    try await drafts.clear(id, matching: markdown)
                     status = L("已保存到本机")
                 } catch {
                     blocked.insert(id); pending.removeValue(forKey: id)
-                    status = L("发生保存冲突 · 编辑已有副本"); self.error = error.localizedDescription
+                    let retained = (try? await drafts.read(id)) != nil
+                    status = retained ? L("文件保存失败 · 本机草稿已保留") : L("保存失败 · 请保留窗口并检查磁盘")
+                    self.error = error.localizedDescription
                 }
             }
         }
@@ -236,17 +297,27 @@ import PaperCore
         do {
             if let snapshot = try await editor.call("snapshot") as? [String: String],
                let rawID = snapshot["id"], let id = UUID(uuidString: rawID), let markdown = snapshot["markdown"],
-               let revision = revisions[id], !blocked.contains(id), LibraryStore.revision(markdown) != revision {
-                pending[id] = markdown
+               let revision = revisions[id], LibraryStore.revision(markdown) != revision {
+                noteChanged(id, markdown: markdown)
             }
         } catch { self.error = error.localizedDescription }
     }
-    func save() async { await synchronizeEditor(); await flush() }
+    func save() async {
+        await synchronizeEditor(); await flush()
+        for task in draftTasks.values {
+            do { try await task.value } catch { self.error = error.localizedDescription }
+        }
+    }
+    func waitForDocumentJobs() async {
+        while activeDocumentJobs > 0 { try? await Task.sleep(for: .milliseconds(50)) }
+    }
     func shutdown() async {
-        reader.focus.enabled = false; externalWatcher?.cancel(); await ai.finish(); await save(); await reader.annotations.flush(); stateDebounce?.cancel()
+        isChangingWorkspace = true; reader.focus.enabled = false; externalWatcher?.cancel(); workspacePresenter = nil; await ai.finish(); await save(); await reader.annotations.flush(); stateDebounce?.cancel()
         if let paper = currentPaper { do { try await store.persistReading(paper.id, page: paper.page, scale: paper.scale, point: paper.readingPoint) } catch { self.error = error.localizedDescription } }
     }
     func capture(page: Int, rect: PDFRect) async {
+        guard !isChangingWorkspace else { return }
+        activeDocumentJobs += 1; defer { activeDocumentJobs -= 1 }
         guard let id = selectedID, !isOpening else { return }
         let url = store.pdfURL(id)
         status = L("正在渲染 PDF 区域…")
@@ -363,10 +434,12 @@ import PaperCore
         }
     }
     func run(_ command: CommandID) {
+        guard !isChangingWorkspace else { return }
         if runResearchCommand(command) { return }
         switch command {
         case .newFolder, .focus, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .askAI, .outline, .noteWindow: break
         case .open: openPanel()
+        case .openFolder: openWorkspaceAction?()
         case .demo: Task { await openDemo() }
         case .save: Task { await save() }
         case .capture: ai.visible = false; reader.annotations.tool = .select; showNotes = true; reader.captureMode.toggle()
@@ -385,8 +458,46 @@ import PaperCore
         case .revealFiles: if let id = selectedID { NSWorkspace.shared.activateFileViewerSelecting([store.pdfURL(id), store.noteURL(id)]) }
         }
     }
+    func refreshWorkspace() async {
+        guard !isRefreshingWorkspace, !isChangingWorkspace else { return }; isRefreshingWorkspace = true
+        defer { isRefreshingWorkspace = false }
+        do {
+            var updated = try await store.scanWorkspace()
+            if let id = selectedID, let index = updated.firstIndex(where: { $0.id == id }) {
+                updated[index].page = reader.page; updated[index].scale = reader.scale; updated[index].readingPoint = reader.readingPosition
+            }
+            let groups = try await store.folders()
+            guard !isChangingWorkspace else { return }
+            if papers != updated { papers = updated }
+            if folders != groups { folders = groups }
+            if let id = selectedID, !updated.contains(where: { $0.id == id }) {
+                await save(); selectedID = nil; commands.hasPaper = false
+                reader.focus.enabled = false; reader.view.document = nil; await editor.clear()
+            }
+            if let id = selectedID {
+                let recovered = try await store.recoverCloudNoteVersions(id)
+                if !recovered.isEmpty { error = L("iCloud 冲突版本已保留为独立副本，可在笔记所在文件夹查看。") }
+            }
+            await checkExternalNote()
+            if let waitingForPaper, papers.contains(where: { $0.id == waitingForPaper }) { await select(waitingForPaper) }
+            await updateCloudStatus()
+            if selectedID == nil, let first = papers.first { await select(first.id) }
+        } catch { status = error.localizedDescription }
+    }
+    private func updateCloudStatus() async {
+        guard workspaceIsCloud, let id = selectedID else { return }
+        let url = store.noteURL(id)
+        let result = await Task.detached { () -> (Bool, String?) in
+            do {
+                let values = try url.resourceValues(forKeys: [.ubiquitousItemIsUploadedKey, .ubiquitousItemUploadingErrorKey, .ubiquitousItemDownloadingErrorKey])
+                return (values.ubiquitousItemIsUploaded == true, (values.ubiquitousItemUploadingError ?? values.ubiquitousItemDownloadingError)?.localizedDescription)
+            } catch { return (false, error.localizedDescription) }
+        }.value
+        if let error = result.1 { cloudStatus = L("iCloud 暂不可用：\(error)") }
+        else { cloudStatus = result.0 ? L("当前笔记已上传到 iCloud") : L("已保存在本机 · 等待 iCloud 上传") }
+    }
     private func checkExternalNote() async {
-        guard let id = selectedID, !isOpening, let revision = revisions[id], !blocked.contains(id) else { return }
+        guard !isChangingWorkspace, let id = selectedID, !isOpening, let revision = revisions[id], !blocked.contains(id) else { return }
         do {
             let note = try await store.readNote(id)
             guard selectedID == id, note.revision != revision else { return }

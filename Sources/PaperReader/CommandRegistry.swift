@@ -5,7 +5,7 @@ import Combine
 
 enum CommandID: String, CaseIterable, Codable, Identifiable {
     case newFolder, focus, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, askAI, outline, noteWindow
-    case open, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
+    case open, openFolder, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
     case capture, quote, zoomIn, zoomOut, fit, nextPage, previousPage, sidebar, notes, revealFiles
     var id: String { rawValue }
     var title: String {
@@ -25,6 +25,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .askAI: L("询问 AI")
         case .outline: L("论文目录")
         case .noteWindow: L("独立查看笔记")
+        case .openFolder: L("打开文件夹…")
         case .open: L("导入 PDF…")
         case .demo: L("打开示例论文")
         case .save: L("保存笔记")
@@ -61,6 +62,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .askAI: "sparkle"
         case .outline: "list.bullet.indent"
         case .noteWindow: "arrow.up.right.square"
+        case .openFolder: "folder"
         case .open: "plus"
         case .demo: "doc.text"
         case .save: "checkmark.circle"
@@ -79,7 +81,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .revealFiles: "folder"
         }
     }
-    var needsPaper: Bool { ![.open, .demo, .newFolder, .sidebar, .notes].contains(self) }
+    var needsPaper: Bool { ![.open, .openFolder, .demo, .newFolder, .sidebar, .notes].contains(self) }
 }
 
 struct CommandShortcut: Codable, Equatable {
@@ -102,7 +104,7 @@ struct CommandShortcut: Codable, Equatable {
     static let defaults: [CommandID: CommandShortcut] = [
         .askAI: .init(key: "g", option: true), .focus: .init(key: "f", option: true),
         .highlight: .init(key: "h", shift: true),
-        .open: .init(key: "o"), .save: .init(key: "s"),
+        .open: .init(key: "o"), .openFolder: .init(key: "o", shift: true), .save: .init(key: "s"),
         .capture: .init(key: "s", option: true), .quote: .init(key: "e", shift: true),
         .zoomIn: .init(key: "="), .zoomOut: .init(key: "-"), .fit: .init(key: "0"),
         .sidebar: .init(key: "1", option: true), .notes: .init(key: "2", option: true)
@@ -126,6 +128,11 @@ struct CommandShortcut: Codable, Equatable {
             }
         }
         else { shortcuts = CommandShortcut.defaults }
+        if UserDefaults.standard.integer(forKey: "shortcutVersion") < 3 {
+            if shortcuts[.openFolder] == nil, let value = CommandShortcut.defaults[.openFolder], !shortcuts.values.contains(where: { $0.normalized == value.normalized }) { shortcuts[.openFolder] = value }
+            UserDefaults.standard.set(3, forKey: "shortcutVersion")
+            if let data = try? JSONEncoder().encode(shortcuts) { UserDefaults.standard.set(data, forKey: "commandShortcuts") }
+        }
     }
     func run(_ command: CommandID) {
         guard !command.needsPaper || hasPaper else { return }
@@ -189,6 +196,7 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             RegisteredCommandButton(registry: registry, id: .open)
+            RegisteredCommandButton(registry: registry, id: .openFolder)
             RegisteredCommandButton(registry: registry, id: .demo)
         }
         CommandGroup(after: .newItem) {

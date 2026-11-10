@@ -33,3 +33,4 @@ PYRESULT
 done
 print "Reports: $REPORT_DIR/integration-en.json, $REPORT_DIR/integration-zh-Hans.json"
 print "Rendered exports and isolated libraries: $TEST_ROOT"
+scripts/test-workspace.sh

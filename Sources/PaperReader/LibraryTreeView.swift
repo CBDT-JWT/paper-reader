@@ -18,6 +18,8 @@ struct LibraryTreeView: View {
             HStack(spacing: 4) {
                 Text(L("文献库")).font(Design.title)
                 Spacer(minLength: 0)
+                Button { model.commands.run(.openFolder) } label: { Image(systemName: "folder") }
+                    .buttonStyle(WorkspaceIconStyle()).help(L("打开文件夹…")).accessibilityLabel(L("打开文件夹…"))
                 Button { model.createFolder(parentID: model.activeFolderID) } label: { Image(systemName: "folder.badge.plus") }
                     .buttonStyle(WorkspaceIconStyle()).help(L("新建文件夹…")).accessibilityLabel(L("新建文件夹…"))
                 Menu {
@@ -43,8 +45,8 @@ struct LibraryTreeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "internaldrive").foregroundStyle(.tertiary)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(L("本地文献库")).font(.system(size: 12, weight: .medium))
-                    Text(L("PDF 与笔记，保存在本机")).font(Design.small).foregroundStyle(.secondary)
+                    Text(model.workspaceIsCloud ? L("iCloud Drive 工作区") : model.store.documentsRoot?.lastPathComponent ?? L("本地文献库")).font(.system(size: 12, weight: .medium))
+                    Text(model.workspaceIsCloud ? model.cloudStatus : L("PDF 与笔记，保存在本机")).font(Design.small).foregroundStyle(.secondary)
                 }
             }.padding(18)
         }.background(Color(nsColor: .windowBackgroundColor))
@@ -63,8 +65,12 @@ struct LibraryTreeView: View {
             }
         } else {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url, url.pathExtension.lowercased() == "pdf" else { return }
-                Task { @MainActor in _ = await model.importPDFs([url], into: folderID) }
+                guard let url else { return }
+                Task { @MainActor in
+                    let directory = await Task.detached { (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }.value
+                    if directory { model.openWorkspaceURLAction?(url) }
+                    else if url.pathExtension.lowercased() == "pdf" { _ = await model.importPDFs([url], into: folderID) }
+                }
             }
         }
     }

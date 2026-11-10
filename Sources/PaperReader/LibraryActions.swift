@@ -8,9 +8,14 @@ extension AppModel {
     func renameFolder(_ folder: LibraryFolder) { libraryNameRequest = .init(action: .renameFolder(folder.id), title: L("重命名文件夹"), initial: folder.name) }
     @discardableResult
     func organizeLibrary(_ change: LibraryOrganizationChange) async -> Bool {
+        guard !isChangingWorkspace else { return false }
         do {
+            let previousURL = selectedID.map { store.pdfURL($0) }
             try await store.organize(change)
             folders = try await store.folders(); papers = try await store.papers()
+            if let id = selectedID, previousURL != store.pdfURL(id), let paper = currentPaper {
+                try await reader.load(url: store.pdfURL(id), page: paper.page, scale: paper.scale, readingPoint: paper.readingPoint)
+            }
             if let activeFolderID, !folders.contains(where: { $0.id == activeFolderID }) { self.activeFolderID = nil }
             return true
         } catch { self.error = error.localizedDescription; return false }
@@ -33,6 +38,7 @@ extension AppModel {
         }
     }
     func trashPaper(_ paper: Paper) async {
+        guard !isChangingWorkspace else { return }
         await save(); await reader.annotations.flush()
         if selectedID == paper.id { await ai.finish() }
         do {
@@ -65,7 +71,7 @@ extension AppModel {
         }
     }
     func lookupMetadata(paperID: UUID? = nil) async {
-        guard let id = paperID ?? selectedID else { return }
+        guard !isChangingWorkspace, let id = paperID ?? selectedID else { return }
         do {
             let url = store.pdfURL(id)
             let pages = try await Task.detached { try PDFServices.text(url: url) }.value
@@ -76,7 +82,7 @@ extension AppModel {
             if let doi { metadata = try await MetadataService.fetch(doi: doi) }
             else if let arxiv { metadata = try await MetadataService.fetchArxiv(id: arxiv) }
             else { if selectedID == id { status = L("未检测到 DOI 或 arXiv ID，可手动填写文献信息。") }; return }
-            guard let index = papers.firstIndex(where: { $0.id == id }) else { return }
+            guard !isChangingWorkspace, let index = papers.firstIndex(where: { $0.id == id }) else { return }
             let header = pages.first?.text.components(separatedBy: "\n").prefix(20).joined(separator: " ") ?? ""
             let normalized: (String) -> String = { $0.lowercased().filter { $0.isLetter || $0.isNumber } }
             let family = metadata.authors.first?.split(separator: ",").first.map(String.init) ?? ""

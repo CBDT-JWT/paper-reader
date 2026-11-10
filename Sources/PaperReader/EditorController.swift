@@ -11,6 +11,7 @@ final class EditorController: NSObject, ObservableObject {
     private var printJob: PrintCompletion?
     @Published private(set) var ready = false
     private var document: (id: UUID, markdown: String)?
+    var isFrozen = false
     var onChange: ((UUID, String) -> Void)?
     var onLink: ((URL) -> Void)?
     var onError: ((String) -> Void)?
@@ -60,6 +61,7 @@ final class EditorController: NSObject, ObservableObject {
         }
     }
     func call(_ method: String, _ argument: Any? = nil) async throws -> Any? {
+        guard !isFrozen || ["getMarkdown", "snapshot", "diagnostics", "setReadOnly", "validate", "inspectMarkdown", "rewriteImages"].contains(method) else { throw EditorError.message(L("正在切换工作区，请稍候。")) }
         let allowed = ["setDocument", "validate", "insertMarkdown", "format", "getMarkdown", "diagnostics", "snapshot", "inspectMarkdown", "rewriteImages", "setReadOnly", "replaceMarkdown", "clearDocument"]
         guard allowed.contains(method) else { throw EditorError.message(L("不支持的编辑器操作")) }
         let argumentJSON: String
@@ -179,7 +181,14 @@ enum EditorError: LocalizedError {
                         "woff": "font/woff", "woff2": "font/woff2", "ttf": "font/ttf"][file.pathExtension] ?? "application/octet-stream"
             jobs[key] = Task {
                 do {
-                    let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: file) }.value
+                    let data = try await Task.detached(priority: .userInitiated) {
+                        for _ in 0..<120 {
+                            try Task.checkCancellation()
+                            if !CoordinatedFiles.needsDownload(file) { return try CoordinatedFiles.read(file) }
+                            try await Task.sleep(for: .milliseconds(500))
+                        }
+                        throw LibraryError.workspaceDownloading
+                    }.value
                     guard !Task.isCancelled else { return }
                     urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mime, expectedContentLength: data.count, textEncodingName: "utf-8"))
                     urlSchemeTask.didReceive(data); urlSchemeTask.didFinish()

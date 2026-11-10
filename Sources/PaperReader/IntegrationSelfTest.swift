@@ -27,6 +27,8 @@ import PaperCore
             metrics["offlineEditorReadyMs"] = milliseconds(launch.duration(to: clock.now))
             checks.append("Real WKWebView loaded bundled Tiptap offline")
             try check(Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap { NSImage(contentsOf: $0) } != nil, "The packaged application contains a readable native app icon")
+            try check(NSClassFromString("SPUUpdater") != nil && FileManager.default.fileExists(atPath: Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/Sparkle.framework").path), "Packaged native app loads its embedded Sparkle framework")
+            try check((Bundle.main.infoDictionary?["SUFeedURL"] as? String) == "https://www.weitao-jiang.cn/paper-reader/appcast.xml" && (Bundle.main.infoDictionary?["SUPublicEDKey"] as? String)?.count == 44, "Packaged updater points at the stable HTTPS feed and contains its public verification key")
             let language = AppLanguage.code
             try check(L("保存笔记") == (language == "en" ? "Save note" : "保存笔记"), "Native commands follow the process system language")
             let webLanguage = try await model.editor.webView.evaluateJavaScript("document.documentElement.lang") as? String
@@ -210,7 +212,8 @@ import PaperCore
             model.reader.goToPage(0); model.reader.focus.enabled = true
             try await eventually { model.reader.focus.detectedColumns == 2 }
             try check(model.reader.focus.overlay.highlights?.1.isEmpty == false, "Native focus overlay uses cached line regions")
-            try await eventually { model.reader.focus.screenMask.coversEveryScreen }
+            do { try await eventually { model.reader.focus.screenMask.coversEveryScreen } }
+            catch { print("FOCUS TEST DIAGNOSTIC: \(model.reader.focus.screenMask.diagnostic)"); throw error }
             checks.append("Native mouse-transparent focus windows cover every connected display, including menu bar and Dock")
             model.reader.focus.togglePin(at: .init(x: 80, y: 595), page: 0)
             let pinned = model.reader.focus.overlay.highlights?.1

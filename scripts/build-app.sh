@@ -13,7 +13,12 @@ BUILD_DIR="${PAPER_READER_BUILD_DIR:-$HOME/Library/Caches/PaperReader/Build}"
 swift build --scratch-path "$BUILD_DIR" -c "$CONFIGURATION"
 BIN_DIR="$(swift build --scratch-path "$BUILD_DIR" -c "$CONFIGURATION" --show-bin-path)"
 STAGING_APP="$BUILD_DIR/Apps/Paper Reader.app"
+rm -rf "$STAGING_APP"
+mkdir -p "$STAGING_APP/Contents/Frameworks"
 mkdir -p "$STAGING_APP/Contents/MacOS" "$STAGING_APP/Contents/Resources"
+SPARKLE="$BUILD_DIR/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+if [[ ! -d "$SPARKLE" ]]; then print "Sparkle framework is missing: $SPARKLE" >&2; exit 1; fi
+ditto --norsrc --noextattr "$SPARKLE" "$STAGING_APP/Contents/Frameworks/Sparkle.framework"
 cp "$BIN_DIR/PaperReader" "$STAGING_APP/Contents/MacOS/PaperReader"
 for RESOURCE_BUNDLE in "$BIN_DIR"/PaperReader_*.bundle; do
   RESOURCE_NAME="${RESOURCE_BUNDLE:t}"
@@ -27,9 +32,10 @@ for LANGUAGE in en zh-Hans; do
 done
 if [[ ! -f assets/AppIcon.icns || assets/AppIcon.png -nt assets/AppIcon.icns ]]; then scripts/build-icon.sh; fi
 cp assets/AppIcon.icns "$STAGING_APP/Contents/Resources/AppIcon.icns"
+cp assets/Sparkle-LICENSE.txt "$STAGING_APP/Contents/Resources/Sparkle-LICENSE.txt"
 cp scripts/Info.plist "$STAGING_APP/Contents/Info.plist"
 xattr -cr "$STAGING_APP"
-codesign --force --deep --sign - "$STAGING_APP"
+python3 scripts/release/sign-app.py "$STAGING_APP"
 mkdir -p build
 APP_PATH="$PWD/build/Paper Reader.app"
 # A launch shortcut avoids reintroducing sync-provider metadata into the signed bundle.

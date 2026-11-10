@@ -19,6 +19,7 @@ import PaperCore
 struct PaperReaderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var bootstrap = AppBootstrap()
+    @StateObject private var updates = AppUpdateController()
     var body: some Scene {
         WindowGroup("Paper Reader", id: "workspace") {
             Group {
@@ -32,11 +33,14 @@ struct PaperReaderApp: App {
                         } else { ProgressView(L("正在打开本地文献库…")).font(.system(size: 14)) }
                     }.padding(30).frame(minWidth: 1060, minHeight: 650)
                 }
-            }.task { await bootstrap.start(delegate: delegate) }
+            }.task { await bootstrap.start(delegate: delegate); updates.start() }
         }
         .defaultSize(width: 1440, height: 920)
         .windowStyle(.titleBar)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button(L("检查更新…")) { updates.check() }.disabled(!updates.canCheck)
+            }
             AppCommands(registry: bootstrap.commands, printPaper: { bootstrap.model?.reader.view.print(with: NSPrintInfo.shared, autoRotate: true) })
             CommandGroup(after: .undoRedo) {
                 Button(L("撤销笔记编辑")) { bootstrap.model?.editor.format("undo") }.disabled(bootstrap.model == nil)
@@ -45,6 +49,7 @@ struct PaperReaderApp: App {
         }
         Settings {
             TabView {
+                UpdateSettingsView(updates: updates).tabItem { Label(L("更新"), systemImage: "arrow.triangle.2.circlepath") }
                 SettingsView(registry: bootstrap.commands).tabItem { Label(L("快捷键"), systemImage: "keyboard") }
                 if let model = bootstrap.model { AISettingsView(settings: model.ai.settings).tabItem { Label("AI", systemImage: "sparkle") } }
             }
@@ -66,6 +71,7 @@ struct PaperReaderApp: App {
             let appModel = AppModel(store: store, commands: commands)
             model = appModel; delegate.model = appModel
             if ProcessInfo.processInfo.arguments.contains("--self-test") { await IntegrationSelfTest.run(model: appModel) }
+            else if ProcessInfo.processInfo.arguments.contains("--website-demo") { await WebsiteDemo.prepare(model: appModel) }
             else { await appModel.start(); await delegate.openPendingFiles() }
         } catch { self.error = error.localizedDescription }
         isStarting = false

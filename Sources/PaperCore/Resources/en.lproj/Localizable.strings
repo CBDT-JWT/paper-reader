@@ -75,8 +75,6 @@
 "工具调用次数已达到限制，请缩小问题范围。" = "The tool-call limit was reached. Ask a more focused question.";
 "已保存到本机" = "Saved on this Mac";
 "已停止生成" = "Generation stopped";
-"已展开" = "Expanded";
-"已折叠" = "Collapsed";
 "已读取 %@ 个模型" = "Loaded %@ models";
 "年份" = "Year";
 "应用" = "Apply";
@@ -101,8 +99,6 @@
 "找不到论文文件。" = "The paper file could not be found.";
 "找到候选文献，请在文献信息中确认。" = "A candidate publication was found. Review it in Paper information.";
 "拒绝" = "Reject";
-"拖入 PDF 或将论文移动到此处" = "Drop PDFs or move papers here";
-"拖入 PDF，或新建文件夹整理文献。" = "Drop PDFs or create a folder to organize papers.";
 "拖动框选 PDF 区域 · Esc 取消" = "Drag to capture a PDF region · Esc to cancel";
 "按下快捷键…" = "Press shortcut…";
 "排序方式" = "Sort by";
@@ -138,6 +134,8 @@
 "无法读取这个 PDF 文件。" = "This PDF could not be opened.";
 "显示／隐藏文献库" = "Show or hide library";
 "显示／隐藏笔记" = "Show or hide notes";
+"更新" = "Updates";
+"更新通过 HTTPS 下载，并在安装前验证签名。自动检查可随时关闭。" = "Updates download over HTTPS and their signatures are verified before installation. You can turn off automatic checks at any time.";
 "有序列表" = "Numbered list";
 "服务提供方" = "AI provider";
 "期" = "Issue";
@@ -149,6 +147,7 @@
 "查找下一个" = "Find next";
 "查询 Crossref" = "Look up in Crossref";
 "标题" = "Title";
+"检查更新…" = "Check for Updates…";
 "检测到 %@ 栏" = "Detected %@ columns";
 "模型服务请求失败，HTTP %@。请检查配置与账户权限。" = "The model request failed (HTTP %@). Check your settings and account access.";
 "模型请求了未经授权的工具。" = "The model requested an unauthorized tool.";
@@ -192,6 +191,7 @@
 "联网检索使用 Crossref 的真实出版物信息。笔记修改始终需要差异确认。API Key 仅保存在 macOS Keychain。" = "Search retrieves real publications from Crossref. Note changes always require diff approval. API keys are stored only in macOS Keychain.";
 "聚焦" = "Focus";
 "聚焦设置" = "Focus settings";
+"自动检查更新" = "Automatically check for updates";
 "自动识别" = "Detect automatically";
 "自动识别不准时可手动指定栏。扫描 PDF 暂无 OCR。" = "Choose a column manually if detection is inaccurate. OCR is not available for scanned PDFs.";
 "自由绘制" = "Freehand drawing";
@@ -202,6 +202,7 @@
 "论文已切换，请在当前笔记中重新导出。" = "The paper changed. Export again from the current note.";
 "论文目录" = "Paper outline";
 "设置已保存" = "Settings saved";
+"访问官网" = "Visit website";
 "询问 AI" = "Ask AI";
 "询问论文或当前选区…" = "Ask about the paper or selection…";
 "该组合保留给 macOS 标准命令。" = "This shortcut is reserved for a standard macOS command.";
@@ -213,6 +214,7 @@
 "请配置有效的模型和 HTTPS 服务地址。" = "Configure a valid model and HTTPS endpoint.";
 "读取模型" = "Load models";
 "资源路径不在允许的目录内。" = "The asset path is outside the allowed folder.";
+"软件更新" = "Software updates";
 "这份 PDF 没有内嵌目录。" = "This PDF has no embedded outline.";
 "适合窗口" = "Fit to window";
 "选择文字" = "Select text";

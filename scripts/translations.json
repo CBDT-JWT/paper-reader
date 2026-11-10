@@ -241,5 +241,11 @@
   "排序方式": "Sort by",
   "文件名": "Filename",
   "聚焦": "Focus",
-  "聚焦设置": "Focus settings"
+  "聚焦设置": "Focus settings",
+  "检查更新…": "Check for Updates…",
+  "更新": "Updates",
+  "软件更新": "Software updates",
+  "自动检查更新": "Automatically check for updates",
+  "访问官网": "Visit website",
+  "更新通过 HTTPS 下载，并在安装前验证签名。自动检查可随时关闭。": "Updates download over HTTPS and their signatures are verified before installation. You can turn off automatic checks at any time."
 }

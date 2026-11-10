@@ -13,9 +13,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.1</string>
+	<string>0.3.0</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>NSHighResolutionCapable</key>
@@ -64,5 +64,17 @@
 			<string>Paper Reader library item</string>
 		</dict>
 	</array>
+	<key>SUFeedURL</key>
+	<string>https://www.weitao-jiang.cn/paper-reader/appcast.xml</string>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+	<key>SUPublicEDKey</key>
+	<string>g7+q2Tr8Zhjlrhc23DuM2JzTzgOKy0n4SrqTb4jsKmk=</string>
+	<key>SURequireSignedFeed</key>
+	<false/>
 </dict>
 </plist>

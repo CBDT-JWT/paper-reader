@@ -1,6 +1,20 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><title>Paper Reader Updates</title><link>https://www.weitao-jiang.cn/paper-reader/</link><description>Stable, Developer ID signed and notarized releases of Paper Reader.</description><language>en</language></channel></rss><!-- sparkle-signatures:
-edSignature: 0POHGofRmVEwWulotbXO9IL9OxM/jPG8LhQJJ/NMt4siLXki8O5RIeEzBdp0RJhoE24wMIDaYlCn8ahntLKrAw==
-length: 609
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Paper Reader</title>
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Tue, 10 Nov 2026 20:30:18 +0800</pubDate>
+            <link>https://www.weitao-jiang.cn/paper-reader/</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/CBDT-JWT/paper-reader/releases/download/v0.3.0/PaperReader-0.3.0-arm64.dmg" length="8409342" type="application/octet-stream" sparkle:edSignature="DLpchsaDA+DW74A/Yd//KA7yfOXWCRcZw6KAqpvX9ZdcJMWsXOXHjt/Y9yQrpOu3bJHIyurINSTRVt76YV7DCA=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: XQoxmPkTeAnYsyJtcyXmh8pkWMazia2EA8iMuq4FcfX8KV3IoPMgpQKd+6vw8U7gkByYpSH1WcHraCndLL/fCA==
+length: 1204
 -->

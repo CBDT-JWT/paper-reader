@@ -100,7 +100,10 @@ struct PaperReaderApp: App {
             let appModel = AppModel(store: store, commands: commands)
             wire(appModel); model = appModel; delegate.model = appModel
             if ProcessInfo.processInfo.arguments.contains("--workspace-self-test") { await WorkspaceSelfTest.run(bootstrap: self) }
-            else if ProcessInfo.processInfo.arguments.contains("--self-test") { await IntegrationSelfTest.run(model: appModel) }
+            else if ProcessInfo.processInfo.arguments.contains("--self-test") {
+                if ProcessInfo.processInfo.arguments.contains("--ai-self-test") { await AISelfTest.runStandalone(model: appModel) }
+                else { await IntegrationSelfTest.run(model: appModel) }
+            }
             else if ProcessInfo.processInfo.arguments.contains("--website-demo") { await WebsiteDemo.prepare(model: appModel) }
             else { await appModel.start(); await delegate.openPendingFiles() }
         } catch { self.error = error.localizedDescription }

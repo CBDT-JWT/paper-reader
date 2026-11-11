@@ -5,13 +5,16 @@
 " — 笔记" = " — notes";
 "%@ — 笔记.pdf" = "%@ — notes.pdf";
 "AI 笔记修改" = "AI note changes";
+"AI 连接设置" = "AI connection settings";
 "API 基础地址" = "API base URL";
 "API 密钥" = "API key";
-"Codex App Server 未连接。" = "Codex App Server is not connected.";
+"Codex App Server 已退出（代码 %@）。" = "Codex App Server exited (code %@).";
 "Codex App Server 请求超时。" = "The Codex App Server request timed out.";
 "Codex App Server 连接已关闭。" = "The Codex App Server connection closed.";
 "Codex 路径" = "Codex executable";
+"Codex 路径不可执行，请在 AI 设置中选择已安装的 Codex。" = "The Codex path is not executable. Choose your installed Codex in AI settings.";
 "Codex 返回了无效的会话。" = "Codex returned an invalid thread.";
+"Enter 发送 · Shift+Enter 换行" = "Enter to send · Shift+Enter for a new line";
 "Markdown 与资源已导出" = "Markdown and assets exported";
 "Markdown 验证失败" = "Markdown validation failed";
 "PDF 与笔记，保存在本机" = "PDFs and notes, on your Mac";
@@ -32,10 +35,10 @@
 "二级标题" = "Heading 2";
 "云端 API" = "Cloud API";
 "从工作区移除（保留原 PDF）" = "Remove from workspace (keep original PDF)";
+"从这篇论文开始" = "Start with this paper";
 "代码块" = "Code block";
 "任务列表" = "Task list";
 "作者（分号分隔）" = "Authors (separate with semicolons)";
-"你" = "You";
 "使用文件版本" = "Use file version";
 "使用本机 Codex 登录；模型推理可能在云端。Shell、文件写入和外部插件不向 AI 开放。" = "Uses your local Codex sign-in; inference may run in the cloud. Shell, file writes, and external plugins are disabled.";
 "使用默认模型" = "Use default model";
@@ -57,6 +60,7 @@
 "卷" = "Volume";
 "原始文件夹不是空的。请先移动其中的文件，或在 Finder 中管理。" = "The original folder is not empty. Move its files first, or manage it in Finder.";
 "发现未保存的本机草稿" = "Unsaved local draft found";
+"发送问题" = "Send question";
 "取消" = "Cancel";
 "名称" = "Name";
 "名称不能为空，也不能包含斜杠或换行。" = "Enter a name without slashes or line breaks.";
@@ -97,6 +101,7 @@
 "当前笔记会保留在 note.previous.md。相对路径的 PNG、JPEG、GIF 和 WebP 图片会复制到论文资源文件夹。" = "The current note will be preserved as note.previous.md. Relative PNG, JPEG, GIF, and WebP images will be copied into the paper’s assets folder.";
 "当前笔记已上传到 iCloud" = "Current note uploaded to iCloud";
 "快捷键" = "Keyboard shortcuts";
+"总结论文的方法与结论" = "Summarize methods and findings";
 "恢复已删除论文" = "Restore deleted papers";
 "恢复本机草稿" = "Restore local draft";
 "恢复默认" = "Restore defaults";
@@ -133,6 +138,7 @@
 "撤销批注" = "Undo annotation";
 "撤销笔记编辑" = "Undo note edit";
 "播放／暂停自动阅读" = "Play/pause automatic reading";
+"收起对话" = "Collapse conversation";
 "放大" = "Zoom in";
 "数据库错误：%@" = "Database error: %@";
 "文件保存失败 · 本机草稿已保留" = "File save failed · Local draft retained";
@@ -174,6 +180,7 @@
 "标题" = "Title";
 "检查更新…" = "Check for Updates…";
 "检测到 %@ 栏" = "Detected %@ columns";
+"模型名称" = "Model name";
 "模型服务请求失败，HTTP %@。请检查配置与账户权限。" = "The model request failed (HTTP %@). Check your settings and account access.";
 "模型请求了未经授权的工具。" = "The model requested an unauthorized tool.";
 "模型（Codex 可留空）" = "Model (optional for Codex)";
@@ -184,7 +191,9 @@
 "正在回答…" = "Generating an answer…";
 "正在打开本地文献库…" = "Opening local library…";
 "正在渲染 PDF 区域…" = "Rendering PDF region…";
+"正在生成回答…" = "Generating an answer…";
 "正在读取论文上下文…" = "Reading paper context…";
+"正在连接 Codex…" = "Connecting to Codex…";
 "每分钟 %@ 行" = "%@ lines/min";
 "每篇论文都有一份独立的 Markdown 笔记。\n摘录和截图可以一键回到原文。" = "Every paper has its own Markdown note.\nQuotes and captures link back to the source.";
 "激光笔" = "Laser pointer";
@@ -225,10 +234,13 @@
 "自动识别不准时可手动指定栏。扫描 PDF 暂无 OCR。" = "Choose a column manually if detection is inaccurate. OCR is not available for scanned PDFs.";
 "自动阅读" = "Automatic reading";
 "自动阅读按栏前进。上下箭头暂停播放并移动，切换应用后自动暂停。" = "Automatic reading follows column order. Arrow keys pause playback and move. Switching apps pauses playback.";
+"自定义模型…" = "Custom model…";
 "自由绘制" = "Freehand drawing";
 "行内代码" = "Inline code";
 "行内公式" = "Inline equation";
+"解释选区、梳理方法，或一起整理笔记。" = "Explain a selection, examine the method, or organize your notes.";
 "让理解沉淀下来" = "Make room for understanding";
+"论文与笔记" = "Paper and notes";
 "论文对话" = "Paper conversation";
 "论文已切换，请在当前笔记中重新导出。" = "The paper changed. Export again from the current note.";
 "论文目录" = "Paper outline";
@@ -241,6 +253,7 @@
 "该组合保留给系统截图或重做。" = "This shortcut is reserved for system screenshots or Redo.";
 "请先在 PDF 中选择要摘录的文字。" = "Select text in the PDF before quoting it.";
 "请先选择原文。" = "Select paper text first.";
+"请总结这篇论文的方法、主要结论和局限，并标注原文页码。" = "Summarize this paper’s methods, main findings and limitations, citing the original page numbers.";
 "请输入一个字符，并选择至少一个修饰键。" = "Enter one character and select at least one modifier.";
 "请选择 iCloud Drive 中的文件夹。普通本地文件夹不会自动同步到 iCloud。" = "Choose a folder in iCloud Drive. An ordinary local folder does not automatically sync to iCloud.";
 "请配置有效的模型和 HTTPS 服务地址。" = "Configure a valid model and HTTPS endpoint.";
@@ -249,6 +262,7 @@
 "软件更新" = "Software updates";
 "边缘柔化" = "Soft edges";
 "这份 PDF 没有内嵌目录。" = "This PDF has no embedded outline.";
+"连接设置" = "Connection settings";
 "适合窗口" = "Fit to window";
 "选择已有的论文文件夹，按原有层级打开 PDF。" = "Choose an existing paper folder to browse its PDFs in place.";
 "选择文字" = "Select text";
@@ -261,6 +275,7 @@
 "重命名文件夹" = "Rename folder";
 "重命名论文" = "Rename paper";
 "重试" = "Try again";
+"重试此问题" = "Retry this question";
 "锁定阅读行（↑ / ↓移动）" = "Pin reading line (↑ / ↓ to move)";
 "阅读" = "Read";
 "阅读、摘录与笔记，在同一个原生工作台。" = "Read, collect evidence, and take notes in one workspace.";
@@ -272,3 +287,4 @@
 "页码" = "Pages";
 "高亮" = "Highlight";
 "高亮选中文字" = "Highlight selected text";
+"默认模型" = "Default model";

@@ -13,7 +13,7 @@ enum Design {
 struct WorkspaceView: View {
     @ObservedObject var model: AppModel
     var body: some View {
-        WorkspaceSplit(model: model)
+        WorkspaceSplit(model: model, ai: model.ai)
             .frame(minWidth: 1060, minHeight: 650)
             .font(Design.body)
             .toolbar {
@@ -40,11 +40,12 @@ struct WorkspaceView: View {
 
 struct WorkspaceSplit: NSViewControllerRepresentable {
     @ObservedObject var model: AppModel
+    @ObservedObject var ai: AIController
     func makeNSViewController(context: Context) -> NSSplitViewController {
         let controller = NSSplitViewController()
         controller.splitView.isVertical = true
         controller.splitView.dividerStyle = .thin
-        controller.splitView.autosaveName = "PaperReader.Workspace.v1"
+        controller.splitView.autosaveName = ProcessInfo.processInfo.arguments.contains("--self-test") ? "PaperReader.Workspace.SelfTest.v2" : "PaperReader.Workspace.v1"
         let library = NSSplitViewItem(viewController: NSHostingController(rootView: LibraryTreeView(model: model)))
         library.minimumThickness = 190; library.maximumThickness = 340; library.canCollapse = true
         library.holdingPriority = .init(260)
@@ -53,12 +54,33 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         let note = NSSplitViewItem(viewController: NSHostingController(rootView: NotePane(model: model, editor: model.editor)))
         note.minimumThickness = 300; note.maximumThickness = 760; note.canCollapse = true
         note.holdingPriority = .init(250)
+        let conversation = NSSplitViewItem(viewController: NSHostingController(rootView: AIConversationDrawer(ai: ai)))
+        conversation.minimumThickness = 320; conversation.maximumThickness = 560; conversation.canCollapse = true
+        conversation.holdingPriority = .init(240); conversation.isCollapsed = true
         controller.addSplitViewItem(library); controller.addSplitViewItem(reader); controller.addSplitViewItem(note)
+        controller.addSplitViewItem(conversation)
         return controller
     }
     func updateNSViewController(_ controller: NSSplitViewController, context: Context) {
         controller.splitViewItems[0].isCollapsed = !model.showSidebar
         controller.splitViewItems[2].isCollapsed = !model.showNotes
+        controller.splitViewItems[3].isCollapsed = !ai.expanded
+        if let window = controller.view.window {
+            let required = max(1060, controller.splitViewItems.filter { !$0.isCollapsed }.reduce(0) { $0 + $1.minimumThickness } + 8)
+            window.contentMinSize.width = required
+            if window.contentLayoutRect.width < required, !window.styleMask.contains(.fullScreen) {
+                var size = window.contentView?.bounds.size ?? window.contentLayoutRect.size; size.width = required
+                window.setContentSize(size)
+            }
+        }
+    }
+}
+
+private struct AIConversationDrawer: View {
+    @ObservedObject var ai: AIController
+    var body: some View {
+        if ai.expanded { AIConversationView(ai: ai) }
+        else { Color.clear }
     }
 }
 

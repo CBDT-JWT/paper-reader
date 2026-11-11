@@ -11,6 +11,7 @@ scripts/build-app.sh
 REPORT_DIR="${PAPER_READER_TEST_REPORT_DIR:-$BUILD_DIR/Reports}"
 mkdir -p "$REPORT_DIR"
 TEST_ROOT="$(mktemp -d /tmp/PaperReader-Integration.XXXXXX)"
+cp scripts/mock-codex-server.py "$TEST_ROOT/mock-codex"
 python3 scripts/mock-ai-server.py "$TEST_ROOT/port" &
 MOCK_PID=$!
 trap 'kill "$MOCK_PID" 2>/dev/null || true' EXIT
@@ -22,6 +23,10 @@ for LANGUAGE in en zh-Hans; do
     --env "PAPER_READER_LIBRARY=$TEST_ROOT/$LANGUAGE/Library" \
     --env "PAPER_READER_MOCK_API=http://127.0.0.1:$MOCK_PORT/v1" \
     --env "PAPER_READER_SKIP_INTERACTIVE_FOCUS=${PAPER_READER_SKIP_INTERACTIVE_FOCUS:-0}" \
+    --env "PAPER_READER_TEST_FOCUS_PDF=${PAPER_READER_TEST_FOCUS_PDF:-}" \
+    --env "PAPER_READER_MOCK_CODEX=$TEST_ROOT/mock-codex" \
+    --env "PAPER_READER_LIVE_TESTS=${PAPER_READER_LIVE_TESTS:-0}" \
+    --env "PAPER_READER_LIVE_CODEX=${PAPER_READER_LIVE_CODEX:-0}" \
     --env "PAPER_READER_TEST_OUTPUT=$REPORT_DIR/integration-$LANGUAGE.json" \
     --args --self-test -AppleLanguages "($LANGUAGE)"
   python3 - "$REPORT_DIR/integration-$LANGUAGE.json" <<'PYRESULT'

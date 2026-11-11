@@ -308,6 +308,7 @@ import PaperCore
                 for try await event in provider.stream(visionRequest) { if case .text(let text) = event { vision += text } }
                 try check(vision.contains("Mock image context received"), "Cloud provider sends PDF image context using the multimodal API contract")
             }
+            checks += try await AISelfTest.run(model: model, output: export)
             if ProcessInfo.processInfo.environment["PAPER_READER_LIVE_TESTS"] == "1" {
                 let metadata = try await MetadataService.fetch(doi: "10.1038/nature14539")
                 try check(metadata.title.lowercased().contains("deep learning") && !metadata.authors.isEmpty, "Live Crossref lookup returned verified publication metadata")

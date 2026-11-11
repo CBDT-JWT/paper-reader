@@ -30,6 +30,7 @@ for (const [name, markdown] of fixtures) {
     if (name === 'image size') assert.match(output, /width=320/)
     if (name === 'math') { assert.equal(element.querySelectorAll('.katex').length, 2); assert.match(output, /\\frac\{1\}\{3\}/) }
     if (name === 'resources') { assert.match(output, /assets\/figure\.png/); assert.match(output, /paperreader:\/\/source/) }
+    if (name === 'formatting') { assert.equal(element.querySelector('strong')?.textContent, 'bold'); assert.equal(element.querySelector('em')?.textContent, 'italic') }
     editor.destroy(); element.remove()
   })
 }
@@ -41,6 +42,21 @@ test('unsupported syntax is rejected without mutating content', () => {
     assert.equal(editor.getText(), 'Original content')
   }
   editor.destroy()
+})
+test('conversation Markdown renders Chinese emphasis, blocks, tables and safe links', async () => {
+  const {messageHTML} = await import('../src/message-markdown.js')
+  const parser = createEditor(document.createElement('div'))
+  const html = messageHTML(parser, '# 结果\n\n这是**粗体**和*斜体*。\n\n- 证据\n- 结论\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n```swift\nlet x = 1\n```\n\n[p.2](paperreader://page/2)\n\n$x^2$')
+  const element = document.createElement('div'); element.innerHTML = html
+  assert.equal(element.querySelector('strong')?.textContent, '粗体')
+  assert.equal(element.querySelector('em')?.textContent, '斜体')
+  assert.ok(element.querySelector('h1') && element.querySelector('li') && element.querySelector('table') && element.querySelector('pre code'))
+  assert.equal(element.querySelector('a')?.getAttribute('href'), 'paperreader://page/2')
+  assert.equal(element.querySelector('[data-latex]')?.dataset.latex, 'x^2')
+  const unsafe = messageHTML(parser, '<script>alert(1)</script>\n\n<img src="x" onerror="alert(1)">\n\n[bad](javascript:alert(1))')
+  const checked = document.createElement('div'); checked.innerHTML = unsafe
+  assert.equal(checked.querySelector('script,[onerror],a[href^="javascript:"]'), null)
+  parser.destroy()
 })
 test('editing math, task and formatting is undoable and serializes supported syntax', () => {
   const editor = createEditor(document.createElement('div'))

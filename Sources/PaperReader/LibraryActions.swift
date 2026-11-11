@@ -114,7 +114,7 @@ extension AppModel {
         case .redoAnnotation: reader.annotations.redo()
         case .exportAnnotated: exportAnnotations()
         case .metadata: metadataPresented = true
-        case .askAI: ai.visible.toggle()
+        case .askAI: ai.toggleVisibility()
         case .outline: OutlineWindow.show(model: self)
         case .noteWindow: NoteWindow.show(model: self)
         default: return false

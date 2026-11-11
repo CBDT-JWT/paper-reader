@@ -9,6 +9,8 @@ h1 {font-size: 28px; line-height: 1.35; font-weight: 650; letter-spacing: -.02em
 h2 {font-size: 22px; line-height: 1.4; margin: 1.4em 0 .5em;}
 h3 {font-size: 18px; line-height: 1.5;}
 p {margin: .7em 0;}
+strong,b {font-weight: 700;}
+em,i {font-style: italic;}
 a {color: var(--accent); cursor: pointer; text-decoration-thickness: .7px; text-underline-offset: 3px;}
 blockquote {border-left: 3px solid var(--border); margin: 1em 0; padding: 0 0 0 16px; color: var(--muted);}
 pre {background: var(--code); border-radius: 8px; padding: 16px; overflow-x: auto; white-space: pre; font-size: 13px;}

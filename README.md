@@ -1,13 +1,17 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.2 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.3 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
-0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[0.4.2 签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
+0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
 
 ## 本轮交互修复
 
+- 0.4.3 聚焦导航保留文本行 ID，修复页脚、版权文字和公式文字框重叠时反复命中上一行的问题；重复出现的实际栏间空隙用于拆开被 PDF 逻辑标签合并的两栏。手动与自动阅读均可继续跨栏。[聚焦回归验证](docs/FOCUS_MOTION.md)
+- 图片、矢量图中的标签及连续图注会从聚焦顺序中排除。正文上下文在图形边界处分段，经过图片时使用淡出与平移过渡。文字坐标通过 PDFKit 的文本选区范围提取，修复部分论文中字符索引与原文位置错位的问题。
+- 展开 AI 对话会打开笔记右侧的原生可调宽抽屉。回答使用离线 Tiptap Markdown 解析，支持加粗、斜体、标题、列表、表格、代码和 KaTeX，提供复制与 PDF 页码链接。
+- 对话顶部可切换 Codex、云端 API 和本地 HTTP 模型，选择或手动输入模型名称。各提供商分别保存模型与服务地址。Codex 子进程补全 Finder 启动环境中的 Node 路径，显示退出代码，支持取消连接及保留草稿的失败重试。
 - 阅读工具栏直接显示带文字的 **“聚焦 / Focus”** 按钮；窄栏也保留直接入口，二级菜单只保留聚焦参数。
 - 暗场改为不激活的 NSPanel 系统覆盖层，监听原生全屏和 Space 切换。新增进入全屏、在全屏内开启、退出全屏后的实际窗口验证，检查遮罩确实属于活动 Space。
 - 文件树提供直接的新建文件夹按钮，以及“文件名 / 标题 / 导入时间”和倒序选择；默认按文件名自然排序，数字 2 排在 10 前，重启保留设置。新导入记录保留原始文件名，旧记录兼容标题回退。
@@ -80,13 +84,13 @@ cd ..
 
 ## AI 配置与权限
 
-在设置的 AI 页选择 Provider：
+在对话顶部选择提供商与模型，连接参数也可在设置的 AI 页修改。
 
 1. **Codex App Server**：使用已安装并登录的 Codex，可修改可执行文件路径；点击“读取模型”后选择。实际验证 CLI 0.167.0。本机 Codex 进程不表示本地模型推理。
 2. **云端 API**：填写 OpenAI 兼容基础地址、模型和 API Key；密钥仅保存于 macOS Keychain。要求 HTTPS。
 3. **本地 HTTP 模型**：连接已经运行的兼容服务，如 `http://127.0.0.1:11434/v1`；应用不附带模型权重或推理引擎。仅回环 HTTP 被允许。
 
-Cmd+Option+G 呼出阅读区底部输入框，Enter 发送、Shift+Enter 换行、Esc 关闭。可展开会话窗口。发送时包含当前论文和笔记的有界上下文，有选区时携带文字与 PDF 渲染图；视觉理解需要支持图像的模型。使用云端或 Codex 时这些上下文会发往所选模型服务，发送前请自行选择合适的 Provider。
+Cmd+Option+G 呼出阅读区底部输入框，Enter 发送、Shift+Enter 换行、Esc 关闭。展开后，对话位于笔记右侧的可调宽抽屉中。发送时包含当前论文和笔记的有界上下文，有选区时携带文字与 PDF 渲染图；视觉理解需要支持图像的模型。使用云端或 Codex 时这些上下文会发往所选模型服务。
 
 模型只获得明确的研究工具：`readPaper`、`getSelection`、`getPageContext`、`searchPaper`、`readNote`、`proposeNoteEdit`、`insertNoteBlock`、`searchWeb`、`getBibliography`。没有任意路径读写、Shell、外部插件或系统操作工具。Codex 启动时关闭这些能力，未知请求和权限提升请求被拒绝。
 
@@ -136,7 +140,7 @@ Library/
 
 ## 验证与限制
 
-运行 `./scripts/test.sh`，在隔离临时库中执行 32 项 Swift 测试、11 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查；并运行依赖审计。本轮中英文原生集成各 85 项通过，包含全屏、跨栏过程采样和边缘像素检查，工作区检查各 15 项通过。云盘单机测试和未验证范围见 [工作区验证记录](docs/ICLOUD_VALIDATION.md)。`PAPER_READER_LIVE_TESTS=1 ./scripts/test.sh` 额外连接真实 Crossref 与已登录 Codex，发送的仅为合成测试文档。详见 [验证记录](docs/VALIDATION.md) 和 [架构](docs/ARCHITECTURE.md)。
+运行 `./scripts/test.sh`，在隔离临时库中执行 39 项 Swift 测试、12 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查，并运行依赖审计。设置 `PAPER_READER_TEST_FOCUS_PDF=/绝对路径/论文.pdf` 可增加外部 PDF 的只读逐行、跨栏及图片聚焦回归。设置 `PAPER_READER_LIVE_CODEX=1` 会验证 Finder 环境下的真实 Codex 启动、模型列表及合成问题的流式回答。`PAPER_READER_LIVE_TESTS=1` 还会运行真实 Crossref 与图像理解检查。测试记录见 [聚焦验证](docs/FOCUS_MOTION.md)、[AI 验证](docs/AI_VALIDATION.md) 和 [工作区验证](docs/ICLOUD_VALIDATION.md)。
 
 本版的明确边界：
 

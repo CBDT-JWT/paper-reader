@@ -11,9 +11,14 @@ public struct ReadingLayout: Sendable {
     public let bounds: PDFRect
     public var lines: [ReadingLine]
     public var columnCount: Int
-    public init(bounds: PDFRect, lines input: [ReadingLine]) {
+    public let figureRegions: [PDFRect]
+    public init(bounds: PDFRect, lines input: [ReadingLine], figureRegions: [PDFRect] = []) {
         self.bounds = bounds
-        let clean = input.filter { $0.rect.height >= 2 && $0.rect.width >= 2 && !$0.text.contains("<latexit") }
+        self.figureRegions = figureRegions
+        let clean = input.filter { line in
+            line.rect.height >= 2 && line.rect.width >= 2 && !line.text.contains("<latexit") &&
+                !figureRegions.contains { $0.cgRect.contains(CGPoint(x: line.rect.cgRect.midX, y: line.rect.cgRect.midY)) }
+        }
         // Axis labels, page numbers and author blocks must not establish the body column width.
         let prose = clean.filter { $0.text.filter { !$0.isWhitespace }.count >= 24 && $0.rect.width > bounds.width * 0.12 }
         let sample = prose.count >= 4 ? prose : clean.filter { $0.rect.width > bounds.width * 0.12 }
@@ -72,26 +77,21 @@ public struct ReadingLayout: Sendable {
         func ordered(_ items: [ReadingLine]) -> [ReadingLine] {
             items.sorted { $0.column == $1.column ? ($0.rect.y == $1.rect.y ? $0.rect.x < $1.rect.x : $0.rect.y > $1.rect.y) : $0.column < $1.column }
         }
-        for span in spanning {
-            let above = body.filter { $0.rect.y > span.rect.y }
+        var boundaries = spanning.map { (y: $0.rect.y, line: Optional($0)) }
+        if columnCount > 1 {
+            boundaries += figureRegions.filter { $0.width > bounds.width * 0.55 }.map { (y: $0.y, line: nil) }
+        }
+        for boundary in boundaries.sorted(by: { $0.y > $1.y }) {
+            let above = body.filter { $0.rect.y > boundary.y }
             result += ordered(above); let ids = Set(above.map(\.id)); body.removeAll { ids.contains($0.id) }
-            result.append(span)
+            if let line = boundary.line { result.append(line) }
         }
         result += ordered(body)
         return result
     }
     public func focused(at point: PDFPoint, above: Int, below: Int, manualColumn: Int? = nil, manualCount: Int = 2) -> [ReadingLine] {
-        var available = lines
-        if let manualColumn {
-            let width = bounds.width / Double(max(manualCount, 1))
-            let left = bounds.x + width * Double(manualColumn)
-            let region = CGRect(x: left, y: bounds.y, width: width, height: bounds.height)
-            available = lines.compactMap { line in
-                let clipped = line.rect.cgRect.intersection(region)
-                guard !clipped.isNull, clipped.width > 2 else { return nil }
-                var line = line; line.rect = PDFRect(clipped); line.column = manualColumn; return line
-            }
-        }
+        guard !figureRegions.contains(where: { $0.cgRect.contains(point.cgPoint) }) else { return [] }
+        var available = manualColumn == nil ? lines : readingOrder(manualColumn: manualColumn, manualCount: manualCount)
         if manualColumn == nil, columnCount > 1 {
             // Adjacent font boxes can overlap vertically. Prefer the physical baseline
             // nearest the pointer; padding a heading's box can steal the next body line.
@@ -110,10 +110,23 @@ public struct ReadingLayout: Sendable {
             }
         }
         guard let nearest = available.min(by: { distance(point, $0.rect.cgRect) < distance(point, $1.rect.cgRect) }) else { return [] }
+        return context(around: nearest, in: available, above: above, below: below, manualColumn: manualColumn)
+    }
+    /// Navigation retains line identity even when footer/font boxes overlap geometrically.
+    public func focused(lineID: Int, above: Int, below: Int, manualColumn: Int? = nil, manualCount: Int = 2) -> [ReadingLine] {
+        let available = manualColumn == nil ? lines : readingOrder(manualColumn: manualColumn, manualCount: manualCount)
+        guard let line = available.first(where: { $0.id == lineID }) else { return [] }
+        return context(around: line, in: available, above: above, below: below, manualColumn: manualColumn)
+    }
+    private func context(around nearest: ReadingLine, in available: [ReadingLine], above: Int, below: Int, manualColumn: Int?) -> [ReadingLine] {
         let spanning = manualColumn == nil && nearest.column >= 0 ? lines.filter { $0.column < 0 } : []
-        let ceiling = spanning.filter { $0.rect.y > nearest.rect.y }.map { $0.rect.y }.min() ?? .infinity
-        let floor = spanning.filter { $0.rect.y < nearest.rect.y }.map { $0.rect.y }.max() ?? -.infinity
-        let column = available.filter { $0.column == nearest.column && $0.rect.y < ceiling && $0.rect.y > floor }.sorted {
+        var ceiling = spanning.filter { $0.rect.cgRect.midY > nearest.rect.cgRect.midY }.map { $0.rect.cgRect.midY }.min() ?? .infinity
+        var floor = spanning.filter { $0.rect.cgRect.midY < nearest.rect.cgRect.midY }.map { $0.rect.cgRect.midY }.max() ?? -.infinity
+        for region in figureRegions.map(\.cgRect) where region.maxX > nearest.rect.x && region.minX < nearest.rect.cgRect.maxX {
+            if region.minY > nearest.rect.cgRect.midY { ceiling = min(ceiling, region.minY) }
+            if region.maxY < nearest.rect.cgRect.midY { floor = max(floor, region.maxY) }
+        }
+        let column = available.filter { $0.column == nearest.column && $0.rect.cgRect.midY < ceiling && $0.rect.cgRect.midY > floor }.sorted {
             abs($0.rect.y - $1.rect.y) > 2 ? $0.rect.y > $1.rect.y : $0.rect.x < $1.rect.x
         }
         guard let index = column.firstIndex(where: { $0.id == nearest.id }) else { return [] }
@@ -123,6 +136,13 @@ public struct ReadingLayout: Sendable {
     /// Padding stops at the gutter so a window never includes the adjacent column.
     public func focusRectangle(at point: PDFPoint, above: Int, below: Int, manualColumn: Int? = nil, manualCount: Int = 2, padding: Double = 6) -> PDFRect? {
         let selected = focused(at: point, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount)
+        return rectangle(containing: selected, manualColumn: manualColumn, manualCount: manualCount, padding: padding)
+    }
+    public func focusRectangle(lineID: Int, above: Int, below: Int, manualColumn: Int? = nil, manualCount: Int = 2, padding: Double = 6) -> PDFRect? {
+        let selected = focused(lineID: lineID, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount)
+        return rectangle(containing: selected, manualColumn: manualColumn, manualCount: manualCount, padding: padding)
+    }
+    private func rectangle(containing selected: [ReadingLine], manualColumn: Int?, manualCount: Int, padding: Double) -> PDFRect? {
         guard let first = selected.first else { return nil }
         var limit = bounds.cgRect
         if let manualColumn {

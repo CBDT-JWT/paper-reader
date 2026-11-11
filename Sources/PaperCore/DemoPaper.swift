@@ -4,7 +4,7 @@ import CoreText
 
 /// Reproducible, locally generated fixture; no third-party paper or network required.
 public enum DemoPaper {
-    public static func create(at url: URL) throws {
+    public static func create(at url: URL, withFooters: Bool = false) throws {
         var media = CGRect(x: 0, y: 0, width: 612, height: 792)
         guard let context = CGContext(url as CFURL, mediaBox: &media, nil) else { throw LibraryError.invalidPDF }
         for index in 0..<3 {
@@ -43,6 +43,12 @@ public enum DemoPaper {
             }
             context.strokePath()
             draw("Figure 1. A vector curve: capture this area at 3x resolution.", at: CGPoint(x: 48, y: 188), size: 11, context: context)
+            if withFooters {
+                draw("Figure axis label", at: CGPoint(x: 100, y: 240), size: 8, context: context)
+                draw("Research support and funding acknowledgement.", at: CGPoint(x: 48, y: 100), size: 8, context: context)
+                draw("This footer belongs to the left reading column.", at: CGPoint(x: 48, y: 88), size: 8, context: context)
+                draw("Copyright 2026. All rights reserved. Authorized reading fixture.", at: CGPoint(x: 48, y: 48), size: 8, context: context)
+            }
             draw("\(index + 1)", at: CGPoint(x: 300, y: 32), size: 11, context: context)
             context.endPDFPage()
         }

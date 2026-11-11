@@ -26,12 +26,16 @@ enum PDFServices {
             let value = text.substring(with: range)
             if value.contains(where: { $0.isNewline }) { sourceLine += 1 }
             guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-            var rect = CGRect.null
-            for position in range.location..<NSMaxRange(range) { rect = rect.union(page.characterBounds(at: position)) }
+            // Selection ranges follow the extracted NSString. characterBounds(at:)
+            // can use a different glyph index after line breaks or ligatures.
+            guard let selection = page.selection(for: range) else { continue }
+            let rect = selection.bounds(for: page)
             glyphs.append(.init(text: value, rect: PDFRect(rect), sourceLine: sourceLine))
         }
         let lines = ReadingLineBuilder.lines(glyphs: glyphs, bounds: PDFRect(bounds))
-        return ReadingLayout(bounds: PDFRect(bounds), lines: lines)
+        let graphics = page.pageRef.map { PDFGraphicRegions.read(page: $0) } ?? []
+        let figures = ReadingFigureDetector.regions(graphics: graphics, lines: lines, bounds: PDFRect(bounds))
+        return ReadingLayout(bounds: PDFRect(bounds), lines: lines, figureRegions: figures)
     }
     /// PDFKit's annotation adaptor requires main-thread construction, serialization and destruction.
     /// Use a short-lived helper process so large exports cannot stall the reader's main thread.

@@ -4,10 +4,12 @@ import QuartzCore
 import PaperCore
 
 struct FocusFrame {
+    let lineID: Int
     let page: Int
     let column: Int
     let rectangle: CGRect
     let anchor: PDFPoint
+    let crossesFigure: Bool
 }
 
 /// Moves the PDF and its aperture in the same frame, including at document boundaries.
@@ -49,7 +51,8 @@ struct FocusFrame {
         let startOrigin = clip.bounds.origin
         let start = overlay.highlights?.1.first ?? target.rectangle
         let startReadingAnchor = overlay.readingAnchor?.cgPoint ?? target.anchor.cgPoint
-        let crossing = overlay.highlights?.0 != target.page || overlay.highlightColumn != target.column
+        let startLineID = overlay.readingLineID
+        let crossing = overlay.highlights?.0 != target.page || overlay.highlightColumn != target.column || target.crossesFigure
         let startVisible = overlay.screenRectangleInPDFView ?? pdf.convert(target.rectangle, from: page)
         let viewport = pdf.convert(clip.bounds, from: clip)
         let endVisible = CGRect(x: viewport.midX - pdf.convert(target.rectangle, from: page).width / 2,
@@ -85,6 +88,7 @@ struct FocusFrame {
                 let rectangle = interpolate(start, target.rectangle, eased)
                 overlay.highlights = (target.page, [rectangle])
                 overlay.readingAnchor = PDFPoint(interpolate(startReadingAnchor, target.anchor.cgPoint, eased))
+                overlay.readingLineID = progress < 0.5 ? startLineID : target.lineID
                 let position = clip.convert(pdf.convert(rectangle, from: page), from: pdf)
                 let approach = progress >= 1 ? 1 : min(1, (now - startTime) / 0.24)
                 let anchor = interpolate(initialAnchor, CGPoint(x: clip.bounds.width / 2, y: clip.bounds.height / 2), approach * approach * (3 - 2 * approach))
@@ -98,6 +102,7 @@ struct FocusFrame {
         overlay.highlights = (target.page, [target.rectangle])
         overlay.highlightColumn = target.column
         overlay.readingAnchor = target.anchor
+        overlay.readingLineID = target.lineID
         overlay.viewportRectangle = nil
         overlay.holeVisibility = 1
         // PDFKit can adjust its tiled document's geometry after a large column/page pan.

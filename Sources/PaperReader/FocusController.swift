@@ -45,6 +45,7 @@ import PaperCore
                 if let entry = overlay.highlights, let anchor = overlay.readingAnchor {
                     page = entry.0
                     lastPoint = anchor
+                    currentLineID = overlay.readingLineID
                 }
                 refreshMask()
             }
@@ -76,9 +77,13 @@ import PaperCore
     private var url: URL?
     private var generation = UUID()
     private var lastPoint: PDFPoint?
+    private(set) var currentLineID: Int?
     private var page = 0
     private var updatingAnchor = false
     var isMoving: Bool { motion.isAnimating }
+    // A scoped native test driver can isolate desktop activation changes, then
+    // restore this observer to test deactivation cancellation independently.
+    var pausesWhenInactive = true
     private var selectedColumn: Int? { manualColumn < 0 ? nil : manualColumn }
 
     init() {
@@ -86,6 +91,7 @@ import PaperCore
             guard let self, !keyboard else { return }
             self.page = page
             lastPoint = point
+            currentLineID = nil
             update()
         }
         overlay.onGeometryChanged = { [weak self] in self?.refreshMask() }
@@ -122,7 +128,10 @@ import PaperCore
             })
         }
         geometryObservers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.automatic = false }
+            MainActor.assumeIsolated {
+                guard let self, self.pausesWhenInactive else { return }
+                self.automatic = false
+            }
         })
     }
 
@@ -139,7 +148,12 @@ import PaperCore
         layouts = [:]
         loading = []
         failedPages = []
+        detectedColumns = 0
+        status = ""
         lastPoint = nil
+        currentLineID = nil
+        overlay.readingLineID = nil
+        overlay.readingAnchor = nil
         page = 0
         keyboard = false
         overlay.highlights = nil
@@ -155,6 +169,7 @@ import PaperCore
             if let target = pdfView.page(for: location, nearest: true) {
                 page = document.index(for: target)
                 lastPoint = PDFPoint(pdfView.convert(location, to: target))
+                currentLineID = nil
             }
         }
         let visible = pdfView.currentPage.map { document.index(for: $0) } ?? page
@@ -190,8 +205,14 @@ import PaperCore
 
     func togglePin(at point: PDFPoint, page: Int) {
         guard enabled else { return }
+        automatic = false
         self.page = page
         lastPoint = point
+        currentLineID = nil
+        if !keyboard, layouts[page]?.figureRegions.contains(where: { $0.cgRect.contains(point.cgPoint) }) == true {
+            update()
+            return
+        }
         keyboard.toggle()
         if !keyboard { update() }
     }
@@ -217,6 +238,14 @@ import PaperCore
             guard let self else { return }
             do {
                 try await waitForLayout(page)
+                if currentFrame() == nil, let layout = layouts[page], let point = lastPoint,
+                   let figure = layout.figureRegions.first(where: { $0.cgRect.contains(point.cgPoint) }),
+                   let next = layout.readingOrder().first(where: { line in
+                       line.rect.cgRect.midY < figure.y && line.rect.x < figure.cgRect.maxX && line.rect.cgRect.maxX > figure.x
+                   }) {
+                    currentLineID = next.id
+                    lastPoint = PDFPoint(x: next.rect.cgRect.midX, y: next.rect.cgRect.midY)
+                }
                 guard let initial = currentFrame() else { automatic = false; return }
                 try await motion.animate(to: initial, automatic: false, speed: { self.linesPerMinute })
                 while enabled && automatic {
@@ -239,10 +268,9 @@ import PaperCore
 
     private func nextFrame(direction: Int) async throws -> FocusFrame? {
         try await waitForLayout(page)
-        guard let layout = layouts[page], let point = lastPoint else { return nil }
+        guard let layout = layouts[page], let current = currentLine(in: layout) else { return nil }
         let order = layout.readingOrder(manualColumn: selectedColumn, manualCount: manualCount)
-        guard let current = layout.focused(at: point, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first,
-              let index = order.firstIndex(where: { $0.id == current.id }) else { return nil }
+        guard let index = order.firstIndex(where: { $0.id == current.id }) else { return nil }
         let next = index + (direction > 0 ? 1 : -1)
         if order.indices.contains(next) { return frame(for: order[next], page: page, layout: layout, manualColumn: selectedColumn) }
         if let column = selectedColumn {
@@ -267,19 +295,36 @@ import PaperCore
     private func frame(for line: ReadingLine, page: Int, layout: ReadingLayout, manualColumn: Int?) -> FocusFrame? {
         let point = PDFPoint(x: line.rect.cgRect.midX, y: line.rect.cgRect.midY)
         let padding = max(6, feather / max(overlay.pdfView?.scaleFactor ?? 1, 0.15))
-        guard let rectangle = layout.focusRectangle(at: point, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount, padding: padding) else { return nil }
-        return FocusFrame(page: page, column: line.column, rectangle: rectangle.cgRect, anchor: point)
+        guard let rectangle = layout.focusRectangle(lineID: line.id, above: above, below: below, manualColumn: manualColumn, manualCount: manualCount, padding: padding) else { return nil }
+        let crossesFigure = overlay.highlights?.0 == page && overlay.highlightColumn == line.column && overlay.readingAnchor.map { source in
+            layout.figureRegions.contains { region in
+                region.y < max(source.y, point.y) && region.cgRect.maxY > min(source.y, point.y) &&
+                    region.x < rectangle.cgRect.maxX && region.cgRect.maxX > rectangle.x
+            }
+        } == true
+        return FocusFrame(lineID: line.id, page: page, column: line.column, rectangle: rectangle.cgRect, anchor: point, crossesFigure: crossesFigure)
     }
 
     private func currentFrame() -> FocusFrame? {
-        guard let layout = layouts[page], let point = lastPoint,
-              let line = layout.focused(at: point, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first else { return nil }
+        guard let layout = layouts[page], let line = currentLine(in: layout) else { return nil }
         return frame(for: line, page: page, layout: layout, manualColumn: selectedColumn)
+    }
+
+    private func currentLine(in layout: ReadingLayout) -> ReadingLine? {
+        if let currentLineID,
+           let line = layout.focused(lineID: currentLineID, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first {
+            return line
+        }
+        guard let point = lastPoint else { return nil }
+        let line = layout.focused(at: point, above: 0, below: 0, manualColumn: selectedColumn, manualCount: manualCount).first
+        currentLineID = line?.id
+        return line
     }
 
     private func setAnchor(_ frame: FocusFrame) {
         page = frame.page
         lastPoint = frame.anchor
+        currentLineID = frame.lineID
         if selectedColumn != nil, manualColumn != frame.column {
             updatingAnchor = true
             manualColumn = frame.column
@@ -321,6 +366,11 @@ import PaperCore
         detectedColumns = layout.columnCount
         status = layout.lines.isEmpty ? L("扫描页面使用区域聚焦；可手动指定阅读栏。") : ""
         if layout.lines.isEmpty {
+            if !layout.figureRegions.isEmpty && manualColumn < 0 {
+                overlay.highlights = nil
+                refreshMask()
+                return
+            }
             let count = manualColumn < 0 ? 1 : max(manualCount, 1)
             let width = layout.bounds.width / Double(count)
             let column = manualColumn < 0 ? 0 : min(max(manualColumn, 0), count - 1)
@@ -332,6 +382,11 @@ import PaperCore
             overlay.highlights = (frame.page, [frame.rectangle])
             overlay.highlightColumn = frame.column
             overlay.readingAnchor = frame.anchor
+            overlay.readingLineID = frame.lineID
+        } else {
+            overlay.highlights = nil
+            overlay.readingAnchor = nil
+            overlay.readingLineID = nil
         }
         refreshMask()
     }
@@ -344,6 +399,7 @@ import PaperCore
     var viewportRectangle: CGRect?
     var holeVisibility = 1.0
     var readingAnchor: PDFPoint?
+    var readingLineID: Int?
     var onGeometryChanged: (() -> Void)?
     var screenRectangleInPDFView: CGRect? {
         if let viewportRectangle { return viewportRectangle }

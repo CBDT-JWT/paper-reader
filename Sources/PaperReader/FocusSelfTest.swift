@@ -4,6 +4,80 @@ import PaperCore
 
 /// Exercises real PDFKit scrolling and layer pixels without requiring foreground activation.
 @MainActor enum FocusSelfTest {
+    /// Optional, read-only regression against an external PDF. Fast repeated arrows also
+    /// exercise cancellation of in-flight camera motion through overlapping font boxes.
+    static func walkDocument(reader: PDFReaderController, url: URL) async throws -> [String] {
+        let original = try Data(contentsOf: url)
+        let layouts = try await Task.detached {
+            guard let document = PDFDocument(url: url) else { throw LibraryError.invalidPDF }
+            return try (0..<document.pageCount).map { try PDFServices.layout(url: url, page: $0) }
+        }.value
+        try await reader.load(url: url, page: 0, scale: 0)
+        let focus = reader.focus
+        let speed = focus.linesPerMinute
+        let pauseOnDeactivate = focus.pausesWhenInactive
+        focus.pausesWhenInactive = false
+        defer { focus.enabled = false; focus.linesPerMinute = speed; focus.pausesWhenInactive = pauseOnDeactivate }
+        focus.enabled = true
+        var checks: [String] = []
+        func wait(_ message: String, _ condition: () -> Bool) async throws {
+            for _ in 0..<500 {
+                if condition() { return }
+                try await Task.sleep(for: .milliseconds(30))
+            }
+            throw IntegrationSelfTest.Failure(message: message + "; enabled=\(focus.enabled), keyboard=\(focus.keyboard), automatic=\(focus.automatic), active=\(NSApp.isActive), line=\(String(describing: focus.currentLineID)), displayed=\(String(describing: focus.overlay.readingLineID)), column=\(focus.overlay.highlightColumn), pages=\(reader.pageCount)")
+        }
+        for (page, layout) in layouts.enumerated() {
+            let order = layout.readingOrder()
+            guard let first = order.first else { continue }
+            focus.keyboard = false
+            focus.togglePin(at: .init(x: first.rect.cgRect.midX, y: first.rect.cgRect.midY), page: page)
+            try await wait("External PDF page \(page + 1) initial anchor") {
+                !focus.isMoving && focus.overlay.highlights?.0 == page && focus.currentLineID == first.id
+            }
+            for line in order.dropFirst() {
+                focus.step(1)
+                try await wait("External PDF page \(page + 1) stalled before line \(line.id)") { focus.currentLineID == line.id }
+            }
+            try await wait("External PDF page \(page + 1) final camera") { !focus.isMoving && centerError(reader) < 2 }
+            checks.append("External PDF page \(page + 1): repeated arrows visit all \(order.count) extracted lines without repeating an overlapping footer anchor")
+            for region in layout.figureRegions {
+                let point = PDFPoint(x: region.cgRect.midX, y: region.cgRect.midY)
+                focus.keyboard = false
+                focus.overlay.onMove?(point, page)
+                guard focus.overlay.highlights == nil else { throw IntegrationSelfTest.Failure(message: "External PDF figure still receives a mouse aperture") }
+                focus.togglePin(at: point, page: page)
+                guard !focus.keyboard else { throw IntegrationSelfTest.Failure(message: "Clicking a figure pinned an empty reading anchor") }
+            }
+            if !layout.figureRegions.isEmpty {
+                checks.append("External PDF page \(page + 1): hovering or clicking each of \(layout.figureRegions.count) graphic/caption regions leaves it dark and keeps mouse-follow mode available")
+            }
+            guard let handoff = order.indices.dropLast().last(where: { order[$0].column == 0 && order[$0 + 1].column == 1 }) else { continue }
+            let start = max(0, handoff - 10)
+            // A mouse can land on another overlapping line. Start on the actual hit and
+            // require automatic navigation to pass the entire remaining footer sequence.
+            let line = order[start]
+            focus.keyboard = false
+            focus.togglePin(at: .init(x: line.rect.cgRect.midX, y: line.rect.cgRect.midY), page: page)
+            try await wait("External PDF page \(page + 1) automatic start") { !focus.isMoving && focus.overlay.highlights?.0 == page }
+            focus.linesPerMinute = 120
+            focus.automatic = true
+            try await wait("External PDF page \(page + 1) automatic footer handoff stalled") {
+                focus.overlay.highlights?.0 == page && focus.overlay.highlightColumn == 1 && focus.overlay.readingLineID == order[handoff + 1].id
+            }
+            focus.automatic = false
+            try await wait("External PDF page \(page + 1) reverse handoff start") { !focus.isMoving }
+            focus.step(-1)
+            try await wait("External PDF page \(page + 1) reverse footer handoff stalled") {
+                !focus.isMoving && focus.overlay.highlightColumn == 0 && focus.currentLineID == order[handoff].id && centerError(reader) < 2
+            }
+            checks.append("External PDF page \(page + 1): automatic playback crosses the footer into the right column, and Up returns to the left-column bottom")
+        }
+        guard try Data(contentsOf: url) == original else { throw IntegrationSelfTest.Failure(message: "External focus validation changed the original PDF") }
+        checks.append("External focus regression preserves the source PDF bytes")
+        return checks
+    }
+
     static func run(reader: PDFReaderController, layout: ReadingLayout, output: URL) async throws -> [String] {
         var checks: [String] = []
         func check(_ condition: Bool, _ message: String) throws {
@@ -21,7 +95,9 @@ import PaperCore
         }
         let focus = reader.focus
         let savedSpeed = focus.linesPerMinute
-        defer { focus.enabled = false; focus.keyboard = false; focus.linesPerMinute = savedSpeed }
+        let pauseOnDeactivate = focus.pausesWhenInactive
+        focus.pausesWhenInactive = false
+        defer { focus.enabled = false; focus.keyboard = false; focus.linesPerMinute = savedSpeed; focus.pausesWhenInactive = pauseOnDeactivate }
         reader.goToPage(0)
         focus.enabled = true
         try await wait { focus.detectedColumns == 2 }
@@ -58,7 +134,7 @@ import PaperCore
                   "Up at the right-column top returns to the left-column bottom")
         focus.linesPerMinute = 120
         focus.automatic = true
-        try await wait { focus.overlay.highlightColumn == 1 && focus.automatic }
+        try await wait { focus.overlay.highlightColumn == 1 && focus.automatic && centerError(reader) < 2 }
         try check(centerError(reader) < 2, "Automatic column handoff finishes with the focus rectangle centred")
         focus.step(1)
         try await Task.sleep(for: .milliseconds(60))
@@ -99,8 +175,10 @@ import PaperCore
         try await wait { !focus.isMoving && focus.overlay.highlights?.0 == 1 && centerError(reader) < 2 }
         checks.append("A page handoff loads the cached adjacent layout and centres its first line")
         focus.automatic = true
+        focus.pausesWhenInactive = true
         NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: NSApp)
         try check(!focus.automatic, "Application deactivation notification pauses automatic playback")
+        focus.pausesWhenInactive = false
         focus.keyboard = false
         focus.manualColumn = 0
         let manualOrder = layout.readingOrder(manualColumn: 0, manualCount: 2)

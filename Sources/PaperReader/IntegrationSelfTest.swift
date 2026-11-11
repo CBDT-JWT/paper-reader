@@ -207,6 +207,19 @@ import PaperCore
             let focusLines = layout.focused(at: .init(x: 80, y: 595), above: 1, below: 2)
             try check(!focusLines.isEmpty && focusLines.allSatisfy { $0.rect.cgRect.maxX < 310 }, "Focus window on a real PDF stays in the left column")
             checks += try await FocusSelfTest.run(reader: model.reader, layout: layout, output: export)
+            let footerPDF = export.appendingPathComponent("footer-fixture.pdf")
+            try await Task.detached { try DemoPaper.create(at: footerPDF, withFooters: true) }.value
+            let footerLayout = try await Task.detached { try PDFServices.layout(url: footerPDF, page: 0) }.value
+            try check(!footerLayout.figureRegions.isEmpty && !footerLayout.lines.contains { $0.text.contains("Figure axis label") }, "Actual vector figure bounds exclude diagram labels from focus navigation")
+            try await model.reader.load(url: footerPDF, page: 0, scale: 0)
+            let footerOutput = export.appendingPathComponent("FooterFocus", isDirectory: true)
+            try FileManager.default.createDirectory(at: footerOutput, withIntermediateDirectories: true)
+            let footerChecks = try await FocusSelfTest.run(reader: model.reader, layout: footerLayout, output: footerOutput)
+            checks += footerChecks.map { "Footer fixture: " + $0 }
+            if let focusPDF = ProcessInfo.processInfo.environment["PAPER_READER_TEST_FOCUS_PDF"], !focusPDF.isEmpty {
+                checks += try await FocusSelfTest.walkDocument(reader: model.reader, url: URL(fileURLWithPath: focusPDF))
+            }
+            try await model.reader.load(url: originalURL, page: 0, scale: 0)
             if ProcessInfo.processInfo.environment["PAPER_READER_SKIP_INTERACTIVE_FOCUS"] == "1" {
                 print("SKIPPED: foreground activation and full-screen focus window checks (explicit noninteractive validation mode)")
             } else {

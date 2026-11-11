@@ -1,6 +1,20 @@
-# Distribution validation — 2026-11-10
+# Distribution validation — 2026-11-11
 
-## Current release: 0.4.2 / build 7
+## Current release 0.4.3 / build 8
+
+Published [v0.4.3 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.3) from source commit `4584f83`. Downloaded the public 10,908,253-byte DMG again. SHA-256 `d011a09792b63593a7b350324d16f1157c2442dbf319a9ed19a29aae8041137a` matches both the published checksum file and website metadata. Mounted it read-only and verified the application version/build and `/Applications` destination link. Strict recursive code-signature verification, stapler and Gatekeeper checks passed for the public app and DMG.
+
+Application notarization `b6c1808e-fb51-4f96-b68d-aa95d3abcf86` and DMG notarization `d2034190-f1b2-4539-997f-e8cf6a8f12d4` were Accepted. Both assessments identify the Developer ID Application team `Q83556V27Y` and return Notarized Developer ID.
+
+The live HTTPS website metadata matches the repository manifest. Sparkle's official verifier accepts the production-signed live appcast. The signed 0.4.2 / build 7 host discovers 0.4.3 / build 8 through Sparkle's information-check API. GitHub verification [run 42975674638](https://github.com/CBDT-JWT/paper-reader/actions/runs/42975674638) and website deployment [run 42975703852](https://github.com/CBDT-JWT/Home/actions/runs/42975703852) completed successfully.
+
+Performed the actual application update through the installed 0.4.2 menu. Sparkle offered 0.4.3, downloaded the public archive and enabled Install and Relaunch. That action replaced the application in `/Applications` and reopened the existing workspace with its 27-paper tree, selected paper, reading position and saved note. The About dialog displayed version 0.4.3 (8). The installed executable, Info.plist and signature resource manifest match the public DMG app byte-for-byte. Its strict signature, stapled ticket and Gatekeeper assessment pass after replacement. The previous installation was backed up outside the workspace before updating.
+
+Validation passed 39 Swift tests, 12 editor tests and 150 native checks in each language, including foreground/full-screen focus, read-only traversal of the supplied seven-page paper and actual Codex catalogue/inference checks. A subsequent AI-only run passed 21 checks per language after the final model-field and shared-schema changes. Workspace checks passed 15 per language using disposable ordinary folders. Six Sparkle signature checks passed with disposable keys. The production dependency audit reported zero vulnerabilities. See [AI validation](AI_VALIDATION.md) and [focus validation](FOCUS_MOTION.md).
+
+Actual third-party cloud access and local model inference remain untested in this release. Loopback fixtures cover their model-discovery, streaming and tool HTTP contracts. Figure and caption detection remains heuristic for unusual document layouts. Intel and older macOS runtime validation remain pending.
+
+## Historical release 0.4.2 / build 7
 
 Published at https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.2. The public DMG checksum matches the website metadata. Downloaded the archive from GitHub, mounted it read-only, validated app and DMG tickets with stapler, and verified strict recursive code signatures. Gatekeeper accepted both as Notarized Developer ID.
 

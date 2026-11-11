@@ -1,13 +1,25 @@
 import { build } from 'esbuild'
-import { mkdir, copyFile, readdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 const outdir = new URL('../Sources/PaperReader/Resources/Editor/', import.meta.url).pathname
-await rm(outdir, {recursive: true, force: true})
 await mkdir(outdir, {recursive: true})
-await build({entryPoints: ['src/editor.js', 'src/conversation.js'], outdir, bundle: true, minify: true, target: 'safari17',
+const result = await build({entryPoints: ['src/editor.js', 'src/conversation.js'], outdir, write: false, bundle: true, minify: true, target: 'safari17',
   loader: {'.woff': 'file', '.woff2': 'file', '.ttf': 'file'}, assetNames: 'fonts/[name]-[hash]', legalComments: 'eof'})
-await copyFile('index.html', path.join(outdir, 'index.html'))
-await copyFile('conversation.html', path.join(outdir, 'conversation.html'))
+const expected = new Set(result.outputFiles.map(file => file.path))
+async function publish(file, value) {
+  expected.add(file)
+  const contents = typeof value === 'string' ? Buffer.from(value) : value
+  try {
+    if ((await readFile(file)).equals(contents)) return
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  await mkdir(path.dirname(file), {recursive: true})
+  await writeFile(file, contents)
+}
+for (const file of result.outputFiles) await publish(file.path, file.contents)
+await publish(path.join(outdir, 'index.html'), await readFile('index.html'))
+await publish(path.join(outdir, 'conversation.html'), await readFile('conversation.html'))
 // Include all transitive dependency licenses in the shipped app.
 let licenses = 'THIRD-PARTY SOFTWARE NOTICES\n\n'
 async function walk(dir) {
@@ -24,5 +36,15 @@ async function walk(dir) {
   }
 }
 await walk('node_modules')
-await writeFile(path.join(outdir, 'THIRD-PARTY-NOTICES.txt'), licenses)
+await publish(path.join(outdir, 'THIRD-PARTY-NOTICES.txt'), licenses)
+// Keep the resource directory and unchanged file identities stable in synced workspaces.
+// Remove obsolete generated output individually after publishing the complete build.
+async function removeStale(dir) {
+  for (const item of await readdir(dir, {withFileTypes: true})) {
+    const file = path.join(dir, item.name)
+    if (item.isDirectory()) await removeStale(file)
+    else if (!expected.has(file)) await unlink(file)
+  }
+}
+await removeStale(outdir)
 console.log('Offline editor built, including KaTeX fonts and license notices.')

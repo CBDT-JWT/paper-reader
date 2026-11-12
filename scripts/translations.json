@@ -303,5 +303,17 @@
   "请总结这篇论文的方法、主要结论和局限，并标注原文页码。": "Summarize this paper’s methods, main findings and limitations, citing the original page numbers.",
   "连接设置": "Connection settings",
   "重试此问题": "Retry this question",
-  "默认模型": "Default model"
+  "默认模型": "Default model",
+  "PDF 不允许写入批注，请检查文件权限或文稿限制。": "This PDF does not allow annotations. Check its file permissions or document restrictions.",
+  "PDF 批注已被其他程序修改，当前编辑已保留在窗口中。请重新打开文件后重试。": "Another application changed the PDF annotations. Your current edits remain in this window. Reopen the document before retrying.",
+  "PDF 批注保存失败，当前编辑已保留在窗口中。请检查文件后重试。": "PDF annotations could not be saved. Your current edits remain in this window. Check the file and retry.",
+  "打开工作区笔记": "Open workspace note",
+  "打开文件夹后，整个工作区共用根目录的一份 Markdown；图片保存在 assets，批注直接写入 PDF。": "An opened folder uses one Markdown note at its root, images in assets, and annotations written directly into the PDF.",
+  "PDF、根目录笔记和 assets 随所选文件夹同步。索引、阅读位置、草稿和 AI 会话留在本机。": "PDFs, the root note and assets sync with the selected folder. The index, reading positions, drafts and AI conversations stay on this Mac.",
+  "当前笔记的上一个版本保存在本机恢复目录。导入的图片会复制到当前笔记旁的 assets。": "The previous note version is retained in local recovery storage. Imported images are copied into assets beside the current note.",
+  "整个工作区共用这一份 Markdown 笔记。": "The entire workspace shares this Markdown note.",
+  "重新载入 PDF 批注": "Reload PDF annotations",
+  "阅读工作区": "Reading workspace",
+  "跳转到页码": "Go to page",
+  "这个工作区已在另一个 Paper Reader 实例中打开，请先关闭那个实例后重试。": "This workspace is open in another Paper Reader instance. Close that instance and retry."
 }

@@ -55,28 +55,10 @@ enum PDFServices {
         }.value
     }
     @MainActor static func writeAnnotated(_ request: AnnotationExportRequest) throws {
-        guard let document = PDFDocument(url: request.original) else { throw LibraryError.invalidPDF }
-        let annotations = request.annotations
-        for record in annotations {
-            guard let page = document.page(at: record.page) else { continue }
-            let type: PDFAnnotationSubtype
-            switch record.kind { case .highlight: type = .highlight; case .line: type = .line; case .rectangle: type = .square; case .ink: type = .ink }
-            let annotation = PDFAnnotation(bounds: record.rect.cgRect, forType: type, withProperties: nil)
-            annotation.color = record.kind == .highlight ? .systemYellow : .systemRed
-            let border = PDFBorder(); border.lineWidth = record.lineWidth; annotation.border = border
-            if record.kind == .line, let start = record.points.first, let end = record.points.last {
-                annotation.startPoint = CGPoint(x: start.x - record.rect.x, y: start.y - record.rect.y)
-                annotation.endPoint = CGPoint(x: end.x - record.rect.x, y: end.y - record.rect.y)
-            }
-            if record.kind == .ink, let first = record.points.first {
-                let path = NSBezierPath(); path.move(to: CGPoint(x: first.x-record.rect.x, y: first.y-record.rect.y))
-                for point in record.points.dropFirst() { path.line(to: CGPoint(x: point.x-record.rect.x, y: point.y-record.rect.y)) }
-                annotation.add(path)
-            }
-            page.addAnnotation(annotation)
+        if request.original.standardizedFileURL != request.destination.standardizedFileURL {
+            try CoordinatedFiles.write(CoordinatedFiles.read(request.original), to: request.destination)
         }
-        guard let data = document.dataRepresentation() else { throw LibraryError.invalidPDF }
-        try data.write(to: request.destination, options: .atomic)
+        try PDFFileAnnotations.write(request.destination, records: request.annotations, expected: nil)
     }
 }
 

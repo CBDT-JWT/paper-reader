@@ -99,6 +99,7 @@ extension LibraryStore {
                 let new = parent.isEmpty ? paper.displayFileName : parent + "/" + paper.displayFileName
                 if old != new { try CoordinatedFiles.move(Self.containedURL(old, in: documentsRoot), to: Self.containedURL(new, in: documentsRoot)) }
                 paper.sourceRelativePath = new
+                try rewriteDocumentLinks(from: old, to: new)
             }
             paper.title = String(paper.displayFileName.dropLast(4)); try persist(paper)
         case .movePaper(let id, let parent):
@@ -108,7 +109,7 @@ extension LibraryStore {
                 let folder = try sourceFolderPath(parent, groups: &groups)
                 let new = folder.isEmpty ? paper.displayFileName : folder + "/" + paper.displayFileName
                 if old != new { try CoordinatedFiles.move(Self.containedURL(old, in: documentsRoot), to: Self.containedURL(new, in: documentsRoot)) }
-                paper.sourceRelativePath = new; try saveFolders(groups)
+                paper.sourceRelativePath = new; try rewriteDocumentLinks(from: old, to: new); try saveFolders(groups)
             }
             paper.folderID = parent; try persist(paper)
         }

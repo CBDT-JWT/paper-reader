@@ -12,6 +12,7 @@ for LANGUAGE in en zh-Hans; do
     EXTRA+=(--env "PAPER_READER_TEST_CLOUD_ROOT=$PAPER_READER_TEST_CLOUD_ROOT/Validation-${TEST_ROOT:t}-$LANGUAGE")
   fi
   open -n -W "$BUILD_DIR/Apps/Paper Reader.app" \
+    --env "PAPER_READER_TEST_APPEARANCE=${PAPER_READER_TEST_APPEARANCE:-}" \
     --env "PAPER_READER_LIBRARY=$TEST_ROOT/$LANGUAGE/OriginalLibrary" \
     --env "PAPER_READER_TEST_OUTPUT=$REPORT_DIR/workspace-$LANGUAGE.json" \
     "${EXTRA[@]}" --args --self-test --workspace-self-test -AppleLanguages "($LANGUAGE)"

@@ -8,7 +8,7 @@ final class WorkspaceTests: XCTestCase, @unchecked Sendable {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true); return root
     }
     func open(_ folder: URL, device: URL) throws -> LibraryStore {
-        try LibraryStore(root: folder.appendingPathComponent(".paper-reader"), indexURL: device.appendingPathComponent("index.sqlite"), documentsRoot: folder)
+        try LibraryStore(root: device.appendingPathComponent("Records"), indexURL: device.appendingPathComponent("index.sqlite"), documentsRoot: folder)
     }
     func testOpenExistingHierarchyWithoutCopyAndKeepIdentityAfterReopen() async throws {
         let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
@@ -114,17 +114,17 @@ final class WorkspaceTests: XCTestCase, @unchecked Sendable {
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.pdfURL(paper.id).path))
         await copy.close(); await store.close()
     }
-    func testRemoteRemovalDuringEditSavesRecoveryWithoutRecreatingBrokenPaper() async throws {
+    func testRemovingAPaperRetainsTheWorkspaceNote() async throws {
         let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
         try DemoPaper.create(at: root.appendingPathComponent("paper.pdf"))
         let store = try open(root, device: root.appendingPathComponent(".device"))
         let scanned = try await store.scanWorkspace(); let paper = try XCTUnwrap(scanned.first)
         let note = try await store.readNote(paper.id)
         try await store.trash(paper.id)
-        do { _ = try await store.saveNote(paper.id, markdown: "Unsent work", expectedRevision: note.revision); XCTFail("missing note accepted") } catch LibraryError.externalChange {}
+        _ = try await store.saveNote(paper.id, markdown: "Shared work", expectedRevision: note.revision)
+        let current = try await store.readNote(paper.id)
+        XCTAssertEqual(current.markdown, "Shared work")
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.directory(paper.id).path))
-        let files = try FileManager.default.contentsOfDirectory(at: store.root.appendingPathComponent("Recovered Edits"), includingPropertiesForKeys: nil)
-        XCTAssertEqual(try String(contentsOf: files[0], encoding: .utf8), "Unsent work")
         let remaining = try await store.scanWorkspace(); XCTAssertTrue(remaining.isEmpty)
         await store.close()
     }

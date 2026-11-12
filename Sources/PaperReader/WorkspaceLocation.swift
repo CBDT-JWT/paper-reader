@@ -4,7 +4,7 @@ import PaperCore
 struct WorkspaceLocation: Sendable {
     let folder: URL
     let isCloud: Bool
-    var data: URL { folder.appendingPathComponent(".paper-reader", isDirectory: true) }
+    var data: URL { Self.indexURL(for: folder).deletingLastPathComponent().appendingPathComponent("Records", isDirectory: true) }
     static let bookmarkKey = "workspace.bookmark.v1"
     static let cloudKey = "workspace.cloud.v1"
     static var localLibrary: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PaperReader/Library", isDirectory: true) }
@@ -35,14 +35,7 @@ struct WorkspaceLocation: Sendable {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else { throw CocoaError(.fileNoSuchFile) }
         if isCloud, !ProcessInfo.processInfo.arguments.contains("--self-test"), !Self.isCloudFolder(folder) { throw LibraryError.notCloudFolder }
-        try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
-        let marker = data.appendingPathComponent("workspace.json")
-        if FileManager.default.fileExists(atPath: marker.path) {
-            let object = try JSONSerialization.jsonObject(with: CoordinatedFiles.read(marker)) as? [String: Any]
-            guard object?["format"] as? Int == 1, object?["application"] as? String == "Paper Reader" else { throw LibraryError.invalidWorkspace }
-        } else {
-            try CoordinatedFiles.write(Data("{\"format\":1,\"application\":\"Paper Reader\"}".utf8), to: marker)
-        }
+
     }
 }
 

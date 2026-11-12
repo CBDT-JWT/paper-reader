@@ -4,7 +4,7 @@ article + article {margin-top: 6px;}
 article header {display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 500;}
 article header button {font-size: 12px; padding: 3px 7px; color: var(--muted); background: transparent; border-radius: 8px;}
 article header button:hover {background: var(--code); color: var(--ink);}
-.user-message .message-content {background: var(--code); border-radius: 8px; padding: 10px 14px;}
+.user-message .message-content {background: var(--code); border-left: 2px solid var(--accent); border-radius: 8px; padding: 10px 14px;}
 .message-content > :first-child {margin-top: 0;}
 .message-content > :last-child {margin-bottom: 0;}
 .message-content strong {font-weight: 700;}

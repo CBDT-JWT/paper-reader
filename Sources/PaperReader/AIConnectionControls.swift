@@ -76,7 +76,7 @@ struct AIErrorBanner: View {
                 Button(L("连接设置")) { configuring = true }
             }.font(Design.small)
         }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
+            .background(WorkspacePalette.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: Design.radius))
             .sheet(isPresented: $configuring) {
                 VStack(spacing: 0) {
                     HStack { Text(L("AI 连接设置")).font(Design.title); Spacer(); Button(L("完成")) { ai.settings.save(); configuring = false } }.padding(20)

@@ -11,13 +11,14 @@ final class EditorController: NSObject, ObservableObject {
     private var printJob: PrintCompletion?
     @Published private(set) var ready = false
     private var document: (id: UUID, markdown: String)?
+    var documentID: UUID? { document?.id }
     var isFrozen = false
     var onChange: ((UUID, String) -> Void)?
     var onLink: ((URL) -> Void)?
     var onError: ((String) -> Void)?
 
-    init(library: URL) {
-        resources = EditorResourceHandler(library: library)
+    init(library: URL, workspace: URL? = nil) {
+        resources = EditorResourceHandler(library: library, workspace: workspace)
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(resources, forURLScheme: "paperreader-resource")
         configuration.userContentController.add(bridge, name: "editor")
@@ -37,9 +38,15 @@ final class EditorController: NSObject, ObservableObject {
         resources.activePaperID = id
         if ready { try await loadDocument() }
     }
+    func rebindSharedDocument(_ id: UUID) async throws -> String {
+        resources.activePaperID = id
+        guard let markdown = try await call("rebindDocument", id.uuidString) as? String else { throw EditorError.message(L("编辑器尚未就绪")) }
+        document = (id, markdown)
+        return markdown
+    }
     private func loadDocument() async throws {
         guard let document else { return }
-        let result = try await call("setDocument", ["id": document.id.uuidString, "markdown": document.markdown]) as? [String: Any]
+        let result = try await call("setDocument", ["id": document.id.uuidString, "markdown": document.markdown, "shared": resources.workspace != nil]) as? [String: Any]
         if result?["ok"] as? Bool == false {
             throw EditorError.message(result?["error"] as? String ?? L("编辑器无法读取这份笔记。"))
         }
@@ -61,8 +68,8 @@ final class EditorController: NSObject, ObservableObject {
         }
     }
     func call(_ method: String, _ argument: Any? = nil) async throws -> Any? {
-        guard !isFrozen || ["getMarkdown", "snapshot", "diagnostics", "setReadOnly", "validate", "inspectMarkdown", "rewriteImages"].contains(method) else { throw EditorError.message(L("正在切换工作区，请稍候。")) }
-        let allowed = ["setDocument", "validate", "insertMarkdown", "format", "getMarkdown", "diagnostics", "snapshot", "inspectMarkdown", "rewriteImages", "setReadOnly", "replaceMarkdown", "clearDocument"]
+        guard !isFrozen || ["markSaved", "getMarkdown", "snapshot", "diagnostics", "setReadOnly", "validate", "inspectMarkdown", "rewriteImages"].contains(method) else { throw EditorError.message(L("正在切换工作区，请稍候。")) }
+        let allowed = ["markSaved", "rebindDocument", "setDocument", "validate", "insertMarkdown", "format", "getMarkdown", "diagnostics", "snapshot", "inspectMarkdown", "rewriteImages", "setReadOnly", "replaceMarkdown", "clearDocument"]
         guard allowed.contains(method) else { throw EditorError.message(L("不支持的编辑器操作")) }
         let argumentJSON: String
         if let argument {
@@ -159,9 +166,10 @@ enum EditorError: LocalizedError {
 
 @MainActor final class EditorResourceHandler: NSObject, WKURLSchemeHandler {
     let library: URL
+    let workspace: URL?
     var activePaperID: UUID?
     private var jobs: [ObjectIdentifier: Task<Void, Never>] = [:]
-    init(library: URL) { self.library = library }
+    init(library: URL, workspace: URL? = nil) { self.library = library; self.workspace = workspace }
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         let key = ObjectIdentifier(urlSchemeTask)
         guard let url = urlSchemeTask.request.url else { return }
@@ -172,13 +180,14 @@ enum EditorError: LocalizedError {
                 file = try LibraryStore.containedURL(String(url.path.dropFirst()), in: root)
             } else if url.host == "paper" {
                 let parts = url.pathComponents.filter { $0 != "/" }
+                let imageTypes = Set(["png", "jpg", "jpeg", "gif", "webp"])
                 guard parts.count >= 2, let id = UUID(uuidString: parts[0]), id == activePaperID,
-                      parts[1] == "assets" else { throw LibraryError.invalidPath }
-                file = try LibraryStore.containedURL(parts.dropFirst().joined(separator: "/"), in: library.appendingPathComponent(id.uuidString))
+                      imageTypes.contains(url.pathExtension.lowercased()), workspace != nil || parts[1] == "assets" else { throw LibraryError.invalidPath }
+                file = try LibraryStore.containedURL(parts.dropFirst().joined(separator: "/"), in: workspace ?? library.appendingPathComponent(id.uuidString))
             } else { throw LibraryError.invalidPath }
             let mime = ["html": "text/html", "js": "application/javascript", "css": "text/css", "png": "image/png",
                         "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp",
-                        "woff": "font/woff", "woff2": "font/woff2", "ttf": "font/ttf"][file.pathExtension] ?? "application/octet-stream"
+                        "woff": "font/woff", "woff2": "font/woff2", "ttf": "font/ttf"][file.pathExtension.lowercased()] ?? "application/octet-stream"
             jobs[key] = Task {
                 do {
                     let data = try await Task.detached(priority: .userInitiated) {

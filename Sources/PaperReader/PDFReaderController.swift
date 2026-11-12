@@ -25,7 +25,17 @@ private final class LoadedPDF: @unchecked Sendable {
     var onCapture: ((Int, PDFRect) -> Void)?
     var onStateChange: ((Int, Double) -> Void)?
     var runCommand: ((CommandID) -> Void)?
-    private var cache: [(URL, PDFDocument)] = []
+    private struct FileStamp: Equatable, Sendable {
+        let modified: Date?
+        let size: Int?
+        let identity: String?
+        init(_ url: URL) throws {
+            let values = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .fileResourceIdentifierKey])
+            modified = values.contentModificationDate; size = values.fileSize
+            identity = values.fileResourceIdentifier.map { String(describing: $0) }
+        }
+    }
+    private var cache: [(URL, PDFDocument, FileStamp)] = []
     private var observers: [NSObjectProtocol] = []
     private var scrollObserver: NSObjectProtocol?
     private var loadToken = UUID()
@@ -33,8 +43,9 @@ private final class LoadedPDF: @unchecked Sendable {
         super.init()
         view.autoScales = true
         view.displayMode = .singlePageContinuous; view.displayDirection = .vertical
+        view.pageShadowsEnabled = false
         view.displaysPageBreaks = true
-        view.backgroundColor = .windowBackgroundColor
+        view.backgroundColor = WorkspacePalette.canvasNS
         view.minScaleFactor = 0.15; view.maxScaleFactor = 6
         view.command = { [weak self] in self?.runCommand?($0) }
         capture.pdfView = view
@@ -68,14 +79,19 @@ private final class LoadedPDF: @unchecked Sendable {
 
     func load(url: URL, page: Int, scale: Double, readingPoint: PDFPoint? = nil) async throws {
         let token = UUID(); loadToken = token
+        let stamp = try await Task.detached { try FileStamp(url) }.value
         let document: PDFDocument
-        if let index = cache.firstIndex(where: { $0.0 == url }) {
+        if let index = cache.firstIndex(where: { $0.0 == url && $0.2 == stamp }) {
             let entry = cache.remove(at: index); cache.append(entry); document = entry.1
         } else {
             guard let loaded = await Task.detached(priority: .userInitiated, operation: { LoadedPDF(url) }).value else { throw LibraryError.invalidPDF }
             guard token == loadToken else { return }
-            document = loaded.document; cache.append((url, document))
+            document = loaded.document; cache.removeAll { $0.0 == url }; cache.append((url, document, stamp))
             if cache.count > 3 { cache.removeFirst() }
+        }
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            for annotation in page.annotations where PDFFileAnnotations.isOwned(annotation) { page.removeAnnotation(annotation) }
         }
         sourceOverlay.source = nil; highlightTask?.cancel()
         view.document = document; pageCount = document.pageCount; observeScrolling()

@@ -9,6 +9,8 @@ extension AppModel {
     @discardableResult
     func organizeLibrary(_ change: LibraryOrganizationChange) async -> Bool {
         guard !isChangingWorkspace else { return false }
+        await save()
+        guard await reader.annotations.flush(), canLeaveWorkspace else { return false }
         do {
             let previousURL = selectedID.map { store.pdfURL($0) }
             try await store.organize(change)
@@ -44,7 +46,7 @@ extension AppModel {
         do {
             try await store.trash(paper.id); papers.removeAll { $0.id == paper.id }
             if selectedID == paper.id {
-                selectedID = nil; reader.focus.enabled = false; ai.cancel(); ai.visible = false; commands.hasPaper = false; reader.view.document = nil; await editor.clear()
+                selectedID = nil; reader.focus.enabled = false; ai.cancel(); ai.visible = false; commands.hasPaper = false; reader.view.document = nil; if store.hasSharedNote { await openSharedNote() } else { await editor.clear(); commands.hasNote = false }
                 if let next = papers.first { await select(next.id) }
             }
         } catch { self.error = error.localizedDescription }

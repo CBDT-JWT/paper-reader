@@ -34,7 +34,7 @@ struct AIComposer: View {
                 ChatInput(text: $ai.draft, submit: { ai.send() }, dismiss: { if compact { ai.visible = false } else { ai.expanded = false } })
                     .frame(height: compact ? 52 : 76)
                 if ai.generating { Button { ai.cancel() } label: { Image(systemName: "stop.circle.fill") }.buttonStyle(WorkspaceIconStyle()).help(L("停止生成")) }
-                else { Button { ai.send() } label: { Image(systemName: "arrow.up.circle.fill").foregroundStyle(Color.accentColor) }
+                else { Button { ai.send() } label: { Image(systemName: "arrow.up.circle.fill").foregroundStyle(WorkspacePalette.accent) }
                     .buttonStyle(WorkspaceIconStyle()).disabled(ai.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .help(L("发送问题")).accessibilityIdentifier("ai.send") }
             }
@@ -43,8 +43,7 @@ struct AIComposer: View {
                 Spacer()
                 Text(L("Enter 发送 · Shift+Enter 换行"))
             }.font(Design.small).foregroundStyle(.tertiary)
-        }.padding(14).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: compact ? 20 : Design.radius))
-            .overlay(RoundedRectangle(cornerRadius: compact ? 20 : Design.radius).stroke(Color.primary.opacity(0.06)))
+        }.padding(14).background(WorkspacePalette.chrome, in: RoundedRectangle(cornerRadius: compact ? 20 : Design.radius))
             .frame(maxWidth: compact ? 600 : .infinity)
     }
 }
@@ -69,7 +68,7 @@ struct AIConversationView: View {
                         Text(L("解释选区、梳理方法，或一起整理笔记。")).font(Design.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         Button(L("总结论文的方法与结论")) { ai.draft = L("请总结这篇论文的方法、主要结论和局限，并标注原文页码。") }.buttonStyle(.bordered)
                     }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(.top, 24)
-                        .background(Color(nsColor: .textBackgroundColor))
+                        .background(WorkspacePalette.paper)
                 }
             }
             if let proposal = ai.proposal {
@@ -78,12 +77,12 @@ struct AIConversationView: View {
                     HStack(alignment: .top, spacing: 12) { diffColumn(proposal.before, comparedTo: proposal.after, before: true); diffColumn(proposal.after, comparedTo: proposal.before, before: false) }.frame(height: 170)
                     Text(L("确认后应用，可在笔记中撤销。")).font(Design.small).foregroundStyle(.secondary)
                     HStack { Spacer(); Button(L("拒绝")) { ai.proposal = nil }; Button(L("应用修改")) { Task { await ai.applyProposal() } }.buttonStyle(.borderedProminent) }
-                }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius)).padding(12)
+                }.padding(14).background(WorkspacePalette.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: Design.radius)).padding(12)
             }
             if let renderingError { Text(renderingError).font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 14) }
             if ai.error != nil { AIErrorBanner(ai: ai).padding(.horizontal, 12).padding(.top, 8) }
             AIComposer(ai: ai, compact: false).padding(12)
-        }.font(Design.body).background(Color(nsColor: .textBackgroundColor)).frame(minWidth: 300)
+        }.font(Design.body).background(WorkspacePalette.paper).frame(minWidth: 300)
     }
     private func diffColumn(_ text: String, comparedTo other: String, before: Bool) -> some View {
         let lines = text.components(separatedBy: "\n"), otherLines = other.components(separatedBy: "\n")

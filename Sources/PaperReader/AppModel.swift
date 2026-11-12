@@ -13,7 +13,7 @@ import PaperCore
     private var workspacePresenter: WorkspacePresenter?
     private var isRefreshingWorkspace = false
     var isChangingWorkspace = false
-    var canLeaveWorkspace: Bool { pending.isEmpty && blocked.isEmpty }
+    var canLeaveWorkspace: Bool { pending.isEmpty && blocked.isEmpty && !reader.annotations.hasUnsavedChanges }
     let drafts: NoteDraftJournal
     private var draftSequence: UInt64 = 0
     private var draftTasks: [UUID: Task<Void, Error>] = [:]
@@ -30,6 +30,7 @@ import PaperCore
     @Published var librarySortAscending = UserDefaults.standard.object(forKey: "library.sortAscending") as? Bool ?? true {
         didSet { UserDefaults.standard.set(librarySortAscending, forKey: "library.sortAscending") }
     }
+    @Published var workspaceNoteURL: URL?
     @Published var folders: [LibraryFolder] = []
     @Published var metadataPresented = false
     @Published var metadataCandidates: [UUID: Bibliography] = [:]
@@ -53,6 +54,7 @@ import PaperCore
     private var saveWorker: (id: UUID, task: Task<Void, Never>)?
     private var stateDebounce: Task<Void, Never>?
     private var selectionToken = UUID()
+    var activeNoteID: UUID? { selectedID ?? (store.hasSharedNote ? store.sharedNoteID : nil) }
     var currentPaper: Paper? { papers.first { $0.id == selectedID } }
     var filteredPapers: [Paper] { query.isEmpty ? papers : papers.filter { $0.title.localizedCaseInsensitiveContains(query) || $0.displayFileName.localizedCaseInsensitiveContains(query) } }
     static var defaultRoot: URL {
@@ -63,7 +65,7 @@ import PaperCore
         self.store = store; self.commands = commands
         drafts = NoteDraftJournal(deviceDirectory: store.deviceDirectory)
         ai = AIController(store: store)
-        editor = EditorController(library: store.root)
+        editor = EditorController(library: store.root, workspace: store.documentsRoot)
         commands.handler = { [weak self] in self?.run($0) }
         reader.runCommand = { [weak self] in self?.commands.run($0) }
         reader.view.commandMenu = { [weak commands] in commands?.menuItems([.askAI, .quote, .capture, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .focus, .focusAutomatic, .undoAnnotation, .redoAnnotation, .fit, .exportAnnotated]) ?? [] }
@@ -89,9 +91,11 @@ import PaperCore
         }
         do {
             papers = try await store.scanWorkspace()
+            workspaceNoteURL = store.hasSharedNote ? store.noteURL(store.sharedNoteID) : nil
             folders = try await store.folders()
             let previous = UserDefaults.standard.string(forKey: "lastPaper").flatMap(UUID.init(uuidString:))
             if let id = papers.first(where: { $0.id == previous })?.id ?? papers.first?.id { await select(id) }
+            else if store.hasSharedNote { await openSharedNote() }
         } catch { self.error = error.localizedDescription }
     }
     func select(_ id: UUID) async {
@@ -99,6 +103,7 @@ import PaperCore
         let token = UUID(); selectionToken = token; isOpening = true
         await synchronizeEditor()
         await flush()
+        guard await reader.annotations.flush() else { isOpening = false; return }
         guard token == selectionToken else { return }
         do {
             guard let paper = papers.first(where: { $0.id == id }) else { throw LibraryError.missingPaper }
@@ -107,11 +112,11 @@ import PaperCore
             let snapshot = try await store.readNote(id)
             var markdown = snapshot.markdown
             try await draftTasks[id]?.value
-            if let draft = try await drafts.read(id) {
-                if draft.markdown == snapshot.markdown { try await drafts.clear(id, matching: draft.markdown) }
+            if let draft = try await drafts.read(store.noteIdentity(id)) {
+                if draft.markdown == snapshot.markdown { try await drafts.clear(store.noteIdentity(id), matching: draft.markdown) }
                 else if draft.baseRevision == snapshot.revision { markdown = draft.markdown }
                 else {
-                    let recovery = try await drafts.archive(id, draft: draft, current: snapshot.markdown)
+                    let recovery = try await drafts.archive(store.noteIdentity(id), draft: draft, current: snapshot.markdown)
                     let alert = NSAlert(); alert.messageText = L("发现未保存的本机草稿")
                     alert.informativeText = L("文件版本与本机草稿不同。两份内容已分别备份，可选择要继续编辑的版本。")
                     alert.addButton(withTitle: L("恢复本机草稿")); alert.addButton(withTitle: L("使用文件版本"))
@@ -119,7 +124,7 @@ import PaperCore
                     let result = alert.runModal()
                     if result == .alertFirstButtonReturn { markdown = draft.markdown }
                     else if result == .alertThirdButtonReturn { NSWorkspace.shared.open(recovery) }
-                    try await drafts.clear(id, matching: draft.markdown)
+                    try await drafts.clear(store.noteIdentity(id), matching: draft.markdown)
                 }
             }
             guard token == selectionToken else { return }
@@ -130,12 +135,15 @@ import PaperCore
             if await Task.detached(operation: { CoordinatedFiles.needsDownload(pdf) }).value { throw LibraryError.workspaceDownloading }
             try await reader.load(url: store.pdfURL(id), page: paper.page, scale: paper.scale, readingPoint: paper.readingPoint)
             guard token == selectionToken else { return }
+            let keepSharedEditor = store.hasSharedNote && editor.documentID.map { revisions[$0] == snapshot.revision } == true && markdown == snapshot.markdown
             selectedID = id; activeFolderID = paper.folderID; revisions[id] = snapshot.revision; blocked.remove(id)
-            try await editor.setDocument(id: id, markdown: markdown)
-            if markdown != snapshot.markdown { noteChanged(id, markdown: markdown); await flush() }
+            if keepSharedEditor { markdown = try await editor.rebindSharedDocument(id) }
+            else { try await editor.setDocument(id: id, markdown: markdown) }
+            if keepSharedEditor { await synchronizeEditor(); await flush() }
+            else if markdown != snapshot.markdown { noteChanged(id, markdown: markdown); await flush() }
             try await reader.annotations.load(id)
             await ai.load(id)
-            commands.hasPaper = true
+            commands.hasPaper = true; commands.hasNote = true
             if !ProcessInfo.processInfo.arguments.contains("--self-test") { UserDefaults.standard.set(id.uuidString, forKey: "lastPaper") }
             status = L("已保存到本机")
             waitingForPaper = nil
@@ -229,8 +237,16 @@ import PaperCore
                 - [ ] 截取图表并回到来源
 
                 """#
-                try await editor.setDocument(id: id, markdown: sample)
-                noteChanged(id, markdown: sample); await flush()
+                if store.hasSharedNote {
+                    let before = try await editor.call("getMarkdown") as? String ?? ""
+                    let after = before.isEmpty ? sample : before + "\n\n" + sample
+                    let result = try await editor.call("replaceMarkdown", ["id": id.uuidString, "expected": before, "markdown": after]) as? [String: Any]
+                    guard result?["ok"] as? Bool == true else { throw LibraryError.externalChange }
+                    await save()
+                } else {
+                    try await editor.setDocument(id: id, markdown: sample)
+                    noteChanged(id, markdown: sample); await flush()
+                }
             }
         } catch { self.error = error.localizedDescription }
     }
@@ -238,8 +254,9 @@ import PaperCore
         guard let revision = revisions[id] else { return }
         draftSequence += 1
         let sequence = draftSequence
+        let noteID = store.noteIdentity(id)
         draftTasks[id] = Task { [weak self, drafts] in
-            do { try await drafts.stage(id, markdown: markdown, baseRevision: revision, sequence: sequence) }
+            do { try await drafts.stage(noteID, markdown: markdown, baseRevision: revision, sequence: sequence) }
             catch { self?.error = error.localizedDescription; throw error }
         }
         guard !blocked.contains(id) else { return }
@@ -267,12 +284,17 @@ import PaperCore
                 guard let revision = revisions[id], !blocked.contains(id) else { continue }
                 do {
                     try await draftTasks[id]?.value
-                    revisions[id] = try await store.saveNote(id, markdown: markdown, expectedRevision: revision)
-                    try await drafts.clear(id, matching: markdown)
+                    let savedRevision = try await store.saveNote(id, markdown: markdown, expectedRevision: revision)
+                    revisions[id] = savedRevision
+                    if store.hasSharedNote {
+                        for key in revisions.keys { revisions[key] = savedRevision }
+                    }
+                    try await drafts.clear(store.noteIdentity(id), matching: markdown)
+                    _ = try await editor.call("markSaved", ["id": id.uuidString, "markdown": markdown])
                     status = L("已保存到本机")
                 } catch {
                     blocked.insert(id); pending.removeValue(forKey: id)
-                    let retained = (try? await drafts.read(id)) != nil
+                    let retained = (try? await drafts.read(store.noteIdentity(id))) != nil
                     status = retained ? L("文件保存失败 · 本机草稿已保留") : L("保存失败 · 请保留窗口并检查磁盘")
                     self.error = error.localizedDescription
                 }
@@ -297,7 +319,7 @@ import PaperCore
         do {
             if let snapshot = try await editor.call("snapshot") as? [String: String],
                let rawID = snapshot["id"], let id = UUID(uuidString: rawID), let markdown = snapshot["markdown"],
-               let revision = revisions[id], LibraryStore.revision(markdown) != revision {
+               let revision = revisions[id], markdown != snapshot["baseline"], LibraryStore.revision(markdown) != revision {
                 noteChanged(id, markdown: markdown)
             }
         } catch { self.error = error.localizedDescription }
@@ -327,7 +349,8 @@ import PaperCore
             let source = SourceReference(paperID: id, page: page, rect: image.rect, asset: asset)
             try await store.addSource(source, image: image.png)
             guard selectedID == id else { throw EditorError.message(L("截图已保存到原论文资源文件夹；论文切换后未自动插入。")) }
-            try await editor.insert(L("\n\n![PDF 第 \(page + 1) 页截图](\(asset))\n\n[来源 · 第 \(page + 1) 页](\(source.link))\n\n"))
+            let link = await store.sourceLink(source)
+            try await editor.insert(L("\n\n![PDF 第 \(page + 1) 页截图](\(asset))\n\n[来源 · 第 \(page + 1) 页](\(link))\n\n"))
             await flush(); status = L("截图已插入 · \(image.pixelWidth) × \(image.pixelHeight)")
         } catch { self.error = error.localizedDescription }
     }
@@ -344,7 +367,8 @@ import PaperCore
                     let escaped = line.map { punctuation.contains($0) ? "\\\($0)" : String($0) }.joined()
                     return "> \(escaped)"
                 }.joined(separator: "\n")
-                markdown += L("\n\n[来源 · 第 \(reference.page + 1) 页](\(reference.link))\n\n")
+                let link = await store.sourceLink(reference)
+                markdown += L("\n\n[来源 · 第 \(reference.page + 1) 页](\(link))\n\n")
             }
             guard selectedID == id else { return }
             try await editor.insert(markdown); await flush()
@@ -352,19 +376,50 @@ import PaperCore
     }
     func openLink(_ url: URL) async {
         if url.scheme == "paperreader", url.host == "page", let number = Int(url.lastPathComponent) { reader.goToPage(number - 1); return }
-        if url.scheme == "paperreader", let id = selectedID, ["source", "asset"].contains(url.host ?? "") {
+        if url.scheme == "paperreader", url.host == "document", let root = store.documentsRoot {
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+            do {
+                guard let path = value("file"), let page = value("page").flatMap(Int.init), page >= 0 else { throw LibraryError.invalidPath }
+                _ = try LibraryStore.containedURL(path, in: root)
+                let knownID = value("paper").flatMap(UUID.init(uuidString:))
+                guard let paper = papers.first(where: { $0.sourceRelativePath == path }) ?? papers.first(where: { $0.id == knownID }) else { throw LibraryError.missingPaper }
+                if selectedID != paper.id { await select(paper.id) }
+                guard selectedID == paper.id else { return }
+                let rect = PDFRect(x: value("x").flatMap(Double.init) ?? 0, y: value("y").flatMap(Double.init) ?? 0,
+                                   width: value("w").flatMap(Double.init) ?? 1, height: value("h").flatMap(Double.init) ?? 1)
+                guard [rect.x, rect.y, rect.width, rect.height].allSatisfy(\.isFinite) else { throw LibraryError.invalidPath }
+                reader.reveal(SourceReference(paperID: paper.id, page: page, rect: rect))
+            } catch { self.error = error.localizedDescription }
+        } else if url.scheme == "paperreader", let id = selectedID, ["source", "asset"].contains(url.host ?? "") {
             let sourceID = UUID(uuidString: url.lastPathComponent)
             let asset = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "path" })?.value
             do {
                 if let source = try await store.sources(id).first(where: {
                     (url.host == "source" && $0.id == sourceID) || (url.host == "asset" && asset != nil && $0.asset == asset)
-                }) { reader.reveal(source) }
+                }) {
+                    if selectedID != source.paperID { await select(source.paperID) }
+                    if selectedID == source.paperID { reader.reveal(source) }
+                }
             }
             catch { self.error = error.localizedDescription }
         } else if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { NSWorkspace.shared.open(url) }
     }
+    func openSharedNote() async {
+        guard store.hasSharedNote else { return }
+        await save()
+        guard canLeaveWorkspace else { return }
+        do {
+            let id = activeNoteID ?? store.sharedNoteID
+            let snapshot = try await store.readNote(id)
+            revisions[id] = snapshot.revision
+            try await editor.setDocument(id: id, markdown: snapshot.markdown)
+            showNotes = true
+            commands.hasNote = true
+        } catch { self.error = error.localizedDescription }
+    }
     func importMarkdown() {
-        guard let id = selectedID else { return }
+        guard let id = activeNoteID else { return }
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText, .plainText]
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
@@ -374,30 +429,30 @@ import PaperCore
     func replaceNote(_ id: UUID, from url: URL, confirmReplacement: Bool = true) async throws {
         let markdown = try await Task.detached { try String(contentsOf: url, encoding: .utf8) }.value
         let analysis = try await editor.call("inspectMarkdown", markdown) as? [String: Any]
-        guard selectedID == id else { return }
+        guard activeNoteID == id else { return }
         if confirmReplacement {
             let alert = NSAlert(); alert.messageText = L("将 Markdown 导入当前笔记？")
-            alert.informativeText = L("当前笔记会保留在 note.previous.md。相对路径的 PNG、JPEG、GIF 和 WebP 图片会复制到论文资源文件夹。")
+            alert.informativeText = L("当前笔记的上一个版本保存在本机恢复目录。导入的图片会复制到当前笔记旁的 assets。")
             alert.addButton(withTitle: L("导入")); alert.addButton(withTitle: L("取消"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         let paths = try await store.importMarkdownAssets(id, paths: analysis?["images"] as? [String] ?? [], relativeTo: url.deletingLastPathComponent())
         let rewritten = try await editor.call("rewriteImages", ["markdown": markdown, "paths": paths]) as? String
-        guard let rewritten, selectedID == id else { return }
+        guard let rewritten, activeNoteID == id else { return }
         await save()
         guard !blocked.contains(id) else { throw LibraryError.externalChange }
         try await editor.setDocument(id: id, markdown: rewritten)
         noteChanged(id, markdown: rewritten); await flush()
     }
     func exportNotePDF() {
-        guard let paper = currentPaper else { return }
+        guard let id = activeNoteID else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]
-        panel.nameFieldStringValue = L("\(paper.title) — 笔记.pdf")
+        panel.nameFieldStringValue = store.hasSharedNote ? store.noteURL(id).deletingPathExtension().lastPathComponent + ".pdf" : L("\(currentPaper?.title ?? "Paper Reader") — 笔记.pdf")
         panel.begin { [weak self] response in
             guard response == .OK, let destination = panel.url else { return }
             Task {
                 guard let self else { return }; await self.save()
-                guard self.selectedID == paper.id else { self.error = L("论文已切换，请在当前笔记中重新导出。"); return }
+                guard self.activeNoteID == id else { self.error = L("论文已切换，请在当前笔记中重新导出。"); return }
                 do {
                     if try await self.editor.exportPDF(to: destination) { self.status = L("笔记 PDF 已导出") }
                     else { self.error = L("PDF 导出已取消。") }
@@ -406,7 +461,7 @@ import PaperCore
         }
     }
     func exportMarkdown() {
-        guard let id = selectedID else { return }
+        guard let id = activeNoteID else { return }
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
         panel.message = L("导出包含 note.md 和 assets 的独立文件夹")
         panel.begin { [weak self] response in
@@ -419,7 +474,7 @@ import PaperCore
         }
     }
     func insertImage() {
-        guard let id = selectedID else { return }
+        guard let id = activeNoteID else { return }
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.png, .jpeg, .gif, .webP]
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
@@ -427,7 +482,7 @@ import PaperCore
                 guard let self else { return }
                 do {
                     let path = try await self.store.importAsset(id, from: url)
-                    guard self.selectedID == id else { return }
+                    guard self.activeNoteID == id else { return }
                     try await self.editor.insert(L("\n\n![图片](\(path))\n\n")); await self.flush()
                 } catch { self.error = error.localizedDescription }
             }
@@ -441,7 +496,7 @@ import PaperCore
         case .open: openPanel()
         case .openFolder: openWorkspaceAction?()
         case .demo: Task { await openDemo() }
-        case .save: Task { await save() }
+        case .save: Task { await save(); await reader.annotations.flush() }
         case .capture: ai.visible = false; reader.annotations.tool = .select; showNotes = true; reader.captureMode.toggle()
         case .quote: Task { await quote() }
         case .importMarkdown: importMarkdown()
@@ -455,7 +510,8 @@ import PaperCore
         case .previousPage: reader.goToPage(reader.page - 1)
         case .sidebar: showSidebar.toggle()
         case .notes: showNotes.toggle()
-        case .revealFiles: if let id = selectedID { NSWorkspace.shared.activateFileViewerSelecting([store.pdfURL(id), store.noteURL(id)]) }
+        case .revealFiles:
+            if let id = activeNoteID { NSWorkspace.shared.activateFileViewerSelecting(selectedID == nil ? [store.noteURL(id)] : [store.pdfURL(id), store.noteURL(id)]) }
         }
     }
     func refreshWorkspace() async {
@@ -463,6 +519,7 @@ import PaperCore
         defer { isRefreshingWorkspace = false }
         do {
             var updated = try await store.scanWorkspace()
+            workspaceNoteURL = store.hasSharedNote ? store.noteURL(store.sharedNoteID) : nil
             if let id = selectedID, let index = updated.firstIndex(where: { $0.id == id }) {
                 updated[index].page = reader.page; updated[index].scale = reader.scale; updated[index].readingPoint = reader.readingPosition
             }
@@ -472,7 +529,7 @@ import PaperCore
             if folders != groups { folders = groups }
             if let id = selectedID, !updated.contains(where: { $0.id == id }) {
                 await save(); selectedID = nil; commands.hasPaper = false
-                reader.focus.enabled = false; reader.view.document = nil; await editor.clear()
+                reader.focus.enabled = false; reader.view.document = nil; if store.hasSharedNote { await openSharedNote() } else { await editor.clear(); commands.hasNote = false }
             }
             if let id = selectedID {
                 let recovered = try await store.recoverCloudNoteVersions(id)
@@ -497,10 +554,10 @@ import PaperCore
         else { cloudStatus = result.0 ? L("当前笔记已上传到 iCloud") : L("已保存在本机 · 等待 iCloud 上传") }
     }
     private func checkExternalNote() async {
-        guard !isChangingWorkspace, let id = selectedID, !isOpening, let revision = revisions[id], !blocked.contains(id) else { return }
+        guard !isChangingWorkspace, let id = activeNoteID, !isOpening, let revision = revisions[id], !blocked.contains(id) else { return }
         do {
             let note = try await store.readNote(id)
-            guard selectedID == id, note.revision != revision else { return }
+            guard activeNoteID == id, note.revision != revision else { return }
             await synchronizeEditor()
             if pending[id] != nil { await flush(); return }
             revisions[id] = note.revision

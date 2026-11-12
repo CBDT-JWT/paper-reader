@@ -107,31 +107,36 @@ struct ReadingToolsPanel: View {
     }
 }
 @MainActor enum NoteWindow {
-    private static var sessions: [UUID: NoteReaderSession] = [:]
+    private static var sessions: [String: NoteReaderSession] = [:]
     static func show(model: AppModel) {
-        guard let paper = model.currentPaper else { return }
-        if let session = sessions[paper.id] { session.window?.makeKeyAndOrderFront(nil); return }
-        let session = NoteReaderSession(model: model, paper: paper); sessions[paper.id] = session
-        session.onClose = { sessions.removeValue(forKey: paper.id) }; session.showWindow(nil)
+        guard let id = model.activeNoteID else { return }
+        let key = model.store.noteURL(id).standardizedFileURL.path
+        if let session = sessions[key] { session.window?.makeKeyAndOrderFront(nil); return }
+        let title = model.store.hasSharedNote ? model.store.noteURL(id).lastPathComponent : (model.currentPaper?.title ?? "Paper Reader") + L(" — 笔记")
+        let session = NoteReaderSession(model: model, id: id, title: title); sessions[key] = session
+        session.onClose = { sessions.removeValue(forKey: key) }; session.showWindow(nil)
     }
 }
 @MainActor private final class NoteReaderSession: NSWindowController, NSWindowDelegate {
     let editor: EditorController
     var onClose: (() -> Void)?
     private var poll: Task<Void, Never>?
-    init(model: AppModel, paper: Paper) {
-        editor = EditorController(library: model.store.root)
+    init(model: AppModel, id: UUID, title: String) {
+        editor = EditorController(library: model.store.root, workspace: model.store.documentsRoot)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 800), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        super.init(window: window); window.title = paper.title + L(" — 笔记"); window.center(); window.delegate = self; window.contentView = editor.webView
-        editor.onLink = { url in Task { await model.select(paper.id); await model.openLink(url) } }
+        super.init(window: window); window.title = title; window.center(); window.delegate = self; window.contentView = editor.webView
+        editor.onLink = { url in Task {
+            if !model.store.hasSharedNote { await model.select(id) }
+            await model.openLink(url)
+        } }
         poll = Task { [weak self] in
             var revision = ""
             while !Task.isCancelled {
                 do {
                     guard let self else { return }
                     if editor.ready {
-                        let note = try await model.store.readNote(paper.id)
-                        if note.revision != revision { try await editor.setDocument(id: paper.id, markdown: note.markdown); _ = try await editor.call("setReadOnly", true); revision = note.revision }
+                        let note = try await model.store.readNote(id)
+                        if note.revision != revision { try await editor.setDocument(id: id, markdown: note.markdown); _ = try await editor.call("setReadOnly", true); revision = note.revision }
                     }
                     try await Task.sleep(for: .milliseconds(700))
                 } catch is CancellationError { return } catch { return }

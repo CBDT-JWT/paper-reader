@@ -6,7 +6,7 @@ import './style.css'
 
 document.documentElement.lang = language
 for (const selector of ['#math-form label', '#math-cancel', '#math-form button[type=submit]']) { const node = document.querySelector(selector); node.textContent = t(node.textContent) }
-let editor, paperID = null, loading = false
+let editor, paperID = null, loading = false, baselineMarkdown = ""
 const host = document.querySelector('#editor')
 const post = payload => window.webkit?.messageHandlers?.editor?.postMessage(payload)
 window.addEventListener('error', event => post({type: 'error', message: event.message}))
@@ -52,7 +52,10 @@ makeEditor()
 // Navigation is mediated by native code, including source links. No arbitrary JS URLs.
 document.addEventListener('click', event => {
   const image = event.target.closest('.tiptap img')
-  if (image) post({type: 'link', url: `paperreader://asset?path=${encodeURIComponent(image.getAttribute('src'))}`})
+  if (image) {
+    const source = image.closest('p')?.nextElementSibling?.querySelector('a[href^="paperreader://document?"]')
+    post({type: 'link', url: source?.getAttribute('href') || `paperreader://asset?path=${encodeURIComponent(image.getAttribute('src'))}`})
+  }
   const link = event.target.closest('a')
   if (link) {
     event.preventDefault()
@@ -63,17 +66,24 @@ document.addEventListener('drop', event => { event.preventDefault() })
 
 window.paperEditor = {
   clearDocument() { loading = true; paperID = null; makeEditor(); editor.setEditable(false); loading = false; return true },
+  rebindDocument(id) {
+    if (!paperID) return null
+    paperID = id
+    document.querySelector('base').href = `paperreader-resource://paper/${paperID}/`
+    return editor.getMarkdown()
+  },
   setDocument(payload) {
     try {
       const parsed = validateMarkdown(editor, payload.markdown)
       loading = true
       paperID = payload.id
       document.querySelector('base').href = `paperreader-resource://paper/${paperID}/`
-      // A fresh Editor prevents undo history from crossing paper boundaries.
-      makeEditor(parsed)
+      // A shared workspace note keeps its selection and undo history across PDF switches.
+      if (!payload.shared || editor.getMarkdown() !== payload.markdown) makeEditor(parsed)
       document.querySelector('#unsupported').hidden = true
       host.hidden = false
       mathPanel.hidden = true
+      baselineMarkdown = editor.getMarkdown()
       loading = false
       return {ok: true}
     } catch (error) {
@@ -138,7 +148,11 @@ window.paperEditor = {
     return commands[action]?.() ?? false
   },
   getMarkdown: () => editor.getMarkdown(),
-  snapshot: () => paperID ? {id: paperID, markdown: editor.getMarkdown()} : null,
+  markSaved(payload) {
+    if (paperID === payload.id && editor.getMarkdown() === payload.markdown) baselineMarkdown = payload.markdown
+    return true
+  },
+  snapshot: () => paperID ? {id: paperID, markdown: editor.getMarkdown(), baseline: baselineMarkdown} : null,
   // Only used by integration self-test; same public editor/transaction APIs as normal editing.
   diagnostics: () => ({paperID, json: editor.getJSON(), mathCount: document.querySelectorAll('.katex').length,
     diagramState: Array.from(document.querySelectorAll('.mermaid-diagram')).map(d => ({ready: d.dataset.ready || 'not-started', error: d.dataset.error || ''})),

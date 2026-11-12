@@ -9,7 +9,7 @@ struct WorkspaceSettingsView: View {
             Label(bootstrap.location?.isCloud == true ? L("iCloud Drive 工作区") : L("本地工作区"), systemImage: bootstrap.location?.isCloud == true ? "icloud" : "folder")
             Text(bootstrap.location?.folder.path ?? AppModel.defaultRoot.path)
                 .font(Design.small).foregroundStyle(.secondary).textSelection(.enabled)
-            Text(L("打开文件夹会按原有层级显示 PDF；关联笔记、图片与批注保存在该文件夹的 .paper-reader 目录。"))
+            Text(L("打开文件夹后，整个工作区共用根目录的一份 Markdown；图片保存在 assets，批注直接写入 PDF。"))
             HStack {
                 Button(L("打开文件夹…")) { bootstrap.chooseWorkspace(cloud: false) }
                 Button(L("启用 iCloud Drive…")) { bootstrap.chooseWorkspace(cloud: true) }
@@ -18,7 +18,7 @@ struct WorkspaceSettingsView: View {
             if bootstrap.isSwitching { ProgressView(L("正在准备工作区，原文献库会保留…")).controlSize(.small) }
             Text(L("在 iCloud Drive 中新建工作区时，会复制当前文献库；选择已有工作区则直接打开。同一 Apple 账户的其他 Mac 选择同一文件夹即可使用。"))
                 .font(Design.small).foregroundStyle(.secondary)
-            Text(L("PDF、笔记、资源、批注与文件夹信息参与同步。SQLite、阅读位置、API 密钥与 AI 会话留在本机。离线时可继续编辑已下载的文件；检测到笔记版本冲突会保留副本，不自动合并。"))
+            Text(L("PDF、根目录笔记和 assets 随所选文件夹同步。索引、阅读位置、草稿和 AI 会话留在本机。"))
                 .font(Design.small).foregroundStyle(.secondary)
         }.font(Design.body).padding(28).frame(width: 540, alignment: .leading)
     }

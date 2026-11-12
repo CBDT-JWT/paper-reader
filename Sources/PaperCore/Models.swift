@@ -46,9 +46,15 @@ public struct NoteSnapshot: Sendable {
 
 public enum LibraryError: LocalizedError {
     case invalidWorkspace, notCloudFolder, workspaceDownloading, nonEmptyFolder
+    case workspaceInUse
+    case pdfReadOnly, pdfAnnotationsChanged, pdfSaveFailed
     case database(String), invalidPDF, missingPaper, externalChange, invalidPath, oversizedImage, invalidName
     public var errorDescription: String? {
         switch self {
+        case .workspaceInUse: return L("这个工作区已在另一个 Paper Reader 实例中打开，请先关闭那个实例后重试。")
+        case .pdfReadOnly: return L("PDF 不允许写入批注，请检查文件权限或文稿限制。")
+        case .pdfAnnotationsChanged: return L("PDF 批注已被其他程序修改，当前编辑已保留在窗口中。请重新打开文件后重试。")
+        case .pdfSaveFailed: return L("PDF 批注保存失败，当前编辑已保留在窗口中。请检查文件后重试。")
         case .invalidWorkspace: return L("工作区文献信息不完整或已损坏，请检查 .paper-reader 中的 paper.json。")
         case .notCloudFolder: return L("请选择 iCloud Drive 中的文件夹。普通本地文件夹不会自动同步到 iCloud。")
         case .workspaceDownloading: return L("iCloud 文件正在下载或暂不可用，请联网后稍候重试。")

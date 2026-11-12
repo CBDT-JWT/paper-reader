@@ -31,9 +31,11 @@ struct NativeLibraryOutline: NSViewRepresentable {
         let id: UUID
         let folder: LibraryFolder?
         let paper: Paper?
+        let note: URL?
         var children: [Item] = []
-        init(folder: LibraryFolder) { id = folder.id; self.folder = folder; paper = nil }
-        init(paper: Paper) { id = paper.id; self.paper = paper; folder = nil }
+        init(folder: LibraryFolder) { id = folder.id; self.folder = folder; paper = nil; note = nil }
+        init(paper: Paper) { id = paper.id; self.paper = paper; folder = nil; note = nil }
+        init(note: URL, id: UUID) { self.id = id; self.note = note; paper = nil; folder = nil }
     }
     @MainActor final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         let model: AppModel
@@ -51,6 +53,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
         private var sort: LibrarySort?
         private var ascending = true
         private var query = ""
+        private var noteURL: URL?
         private var selectedPaper: UUID?
         private var activeFolder: UUID?
         private var refreshing = false
@@ -60,12 +63,14 @@ struct NativeLibraryOutline: NSViewRepresentable {
             let rows = model.papers.map(PaperRow.init)
             let paperChanged = selectedPaper != model.selectedID
             let folderChanged = activeFolder != model.activeFolderID
-            let dataChanged = paperRows != rows || folders != model.folders || sort != model.librarySort || ascending != model.librarySortAscending || query != model.query
+            let note = model.workspaceNoteURL
+            let dataChanged = noteURL != note || paperRows != rows || folders != model.folders || sort != model.librarySort || ascending != model.librarySortAscending || query != model.query
             refreshing = true; defer { refreshing = false }
             if dataChanged {
                 let expanded = Set(items.values.filter { $0.folder != nil && outline.isItemExpanded($0) }.map(\.id))
                 let previous = Set(items.keys)
                 paperRows = rows; papers = model.papers; folders = model.folders; sort = model.librarySort; ascending = model.librarySortAscending; query = model.query
+                noteURL = note
                 items = [:]
                 func build(_ parent: UUID?, visited: Set<UUID>) -> [Item] {
                     let groups = LibraryHierarchy.ordered(folders.filter { folder in parent == nil ? folder.parentID == nil || !folders.contains(where: { $0.id == folder.parentID }) : folder.parentID == parent })
@@ -79,6 +84,10 @@ struct NativeLibraryOutline: NSViewRepresentable {
                 }
                 if query.isEmpty { roots = build(nil, visited: []) }
                 else { roots = model.librarySort.ordered(model.filteredPapers, ascending: ascending).map { paper in let item = Item(paper: paper); items[paper.id] = item; return item } }
+                if let note, query.isEmpty || note.lastPathComponent.localizedCaseInsensitiveContains(query) {
+                    let item = Item(note: note, id: model.store.sharedNoteID)
+                    roots.insert(item, at: 0); items[item.id] = item
+                }
                 outline.reloadData()
                 for item in items.values where item.folder != nil && (expanded.contains(item.id) || !previous.contains(item.id)) { outline.expandItem(item) }
             }
@@ -102,21 +111,23 @@ struct NativeLibraryOutline: NSViewRepresentable {
         func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any { ((item as? Item)?.children ?? roots)[index] }
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool { (item as? Item)?.folder != nil }
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat { (item as? Item)?.folder != nil ? 34 : 50 }
+        func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? { WorkspaceLibraryRow() }
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let item = item as? Item else { return nil }
             let view = LibraryCellView()
-            view.title.stringValue = item.folder?.name ?? item.paper?.title ?? ""
+            view.title.stringValue = item.note?.lastPathComponent ?? item.folder?.name ?? item.paper?.title ?? ""
             view.detail.stringValue = item.paper?.metadata?.year.map(String.init) ?? (item.paper == nil ? "" : "PDF")
-            view.detail.isHidden = item.folder != nil
-            view.icon.image = NSImage(systemSymbolName: item.folder != nil ? "folder" : "doc.richtext", accessibilityDescription: nil)
-            view.icon.contentTintColor = item.folder != nil ? .secondaryLabelColor : .controlAccentColor
-            view.toolTip = item.paper?.displayFileName ?? item.folder?.name
-            view.setAccessibilityLabel(item.folder?.name ?? item.paper?.displayFileName)
+            view.detail.isHidden = item.paper == nil
+            view.icon.image = NSImage(systemSymbolName: item.note != nil ? "doc.text" : item.folder != nil ? "folder" : "doc.richtext", accessibilityDescription: nil)
+            view.icon.contentTintColor = item.note != nil ? WorkspacePalette.amberNS : WorkspacePalette.accentNS
+            view.toolTip = item.note?.path ?? item.paper?.displayFileName ?? item.folder?.name
+            view.setAccessibilityLabel(item.note?.lastPathComponent ?? item.folder?.name ?? item.paper?.displayFileName)
             return view
         }
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !refreshing, let outline, let item = outline.item(atRow: outline.selectedRow) as? Item else { return }
-            if let folder = item.folder { model.activeFolderID = folder.id }
+            if item.note != nil { Task { await model.openSharedNote(); model.editor.webView.window?.makeFirstResponder(model.editor.webView) } }
+            else if let folder = item.folder { model.activeFolderID = folder.id }
             else if let paper = item.paper, paper.id != model.selectedID { Task { await model.select(paper.id) } }
         }
         @objc func openFolder(_ sender: NSOutlineView) {
@@ -124,7 +135,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
             if sender.isItemExpanded(item) { sender.collapseItem(item) } else { sender.expandItem(item) }
         }
         func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
-            guard let item = item as? Item else { return nil }
+            guard let item = item as? Item, item.note == nil else { return nil }
             let payload = LibraryDragItem(id: item.id, folder: item.folder != nil)
             guard let data = try? JSONEncoder().encode(payload) else { return nil }
             let writer = NSPasteboardItem(); writer.setData(data, forType: .init(UTType.libraryItem.identifier)); return writer
@@ -162,6 +173,11 @@ struct NativeLibraryOutline: NSViewRepresentable {
             let menu = NSMenu()
             guard let item = outline?.item(atRow: row) as? Item else {
                 for entry in model.commands.menuItems([.openFolder]) { menu.addItem(entry) }; menu.addItem(action(L("新建文件夹…")) { [model] in model.createFolder() }); return menu
+            }
+            if let note = item.note {
+                menu.addItem(action(L("打开工作区笔记")) { [model] in Task { await model.openSharedNote() } })
+                menu.addItem(action(L("在 Finder 中显示文件")) { NSWorkspace.shared.activateFileViewerSelecting([note]) })
+                return menu
             }
             if let folder = item.folder {
                 menu.addItem(action(L("新建子文件夹…")) { [model] in model.createFolder(parentID: folder.id) })
@@ -218,4 +234,12 @@ struct NativeLibraryOutline: NSViewRepresentable {
         labels.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
     required init?(coder: NSCoder) { nil }
+}
+
+@MainActor private final class WorkspaceLibraryRow: NSTableRowView {
+    override func drawSelection(in dirtyRect: NSRect) {
+        WorkspacePalette.selectionNS.setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: Design.radius, yRadius: Design.radius).fill()
+    }
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
 }

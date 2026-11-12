@@ -21,7 +21,7 @@ public enum DemoPaper {
                 "Use the region tool to capture a figure or formula.",
                 "Each capture keeps its page and PDF coordinates.",
                 "Click its source link to return to the evidence.",
-                "The original PDF is never modified by this app.",
+                "Annotations are saved in this PDF file.",
                 "Notes are ordinary Markdown files on your disk.",
                 "Equations use offline KaTeX rendering.",
                 "The editor supports structured, editable content.",

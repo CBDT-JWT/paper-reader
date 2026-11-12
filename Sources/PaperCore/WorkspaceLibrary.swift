@@ -2,8 +2,16 @@ import Foundation
 
 extension LibraryStore {
     /// Discover a user-selected folder in place. PDFs are linked by relative path, never moved on open.
-    public func scanWorkspace() throws -> [Paper] {
+    public func scanWorkspace() async throws -> [Paper] {
+        let records = try scanWorkspaceFiles()
+        for paper in records where FileManager.default.fileExists(atPath: directory(paper.id).appendingPathComponent("annotations.json").path) {
+            _ = try await annotations(paper.id)
+        }
+        return records
+    }
+    private func scanWorkspaceFiles() throws -> [Paper] {
         guard let documentsRoot else { return try papers() }
+        try prepareWorkspaceDocuments()
         var records = try papers()
         var groups = try folders()
         var foldersByPath = Dictionary(groups.compactMap { folder in folder.sourceRelativePath.map { ($0, folder.id) } }, uniquingKeysWith: { first, _ in first })
@@ -36,18 +44,22 @@ extension LibraryStore {
                let old = records[index].sourceRelativePath,
                !FileManager.default.fileExists(atPath: documentsRoot.appendingPathComponent(old).path) {
                 records[index].sourceRelativePath = path; records[index].fileName = url.lastPathComponent; records[index].folderID = parent
-                try persist(records[index]); papersByPath[path] = id; continue
+                try persist(records[index]); try rewriteDocumentLinks(from: old, to: path); papersByPath[path] = id; continue
             }
-            var paper = Paper(title: url.deletingPathExtension().lastPathComponent)
+            let digest = Self.revision(path)
+            let raw = String(digest.prefix(32))
+            let identifier = [raw.prefix(8), raw.dropFirst(8).prefix(4), raw.dropFirst(12).prefix(4), raw.dropFirst(16).prefix(4), raw.dropFirst(20)].map(String.init).joined(separator: "-")
+            var paper = Paper(id: UUID(uuidString: identifier)!, title: url.deletingPathExtension().lastPathComponent)
             paper.sourceRelativePath = path; paper.fileName = url.lastPathComponent; paper.folderID = parent
-            try FileManager.default.createDirectory(at: directory(paper.id).appendingPathComponent("assets"), withIntermediateDirectories: true)
-            try CoordinatedFiles.write(Data("# \(paper.title)\n\n".utf8), to: noteURL(paper.id))
             try persist(paper); records.append(paper); papersByPath[path] = paper.id
             if let identity { identities[identity] = paper.id }
         }
         if groups != previousGroups { try saveFolders(groups) }
         try JSONEncoder().encode(identities).write(to: identityURL, options: .atomic)
-        return records.sorted { $0.importedAt > $1.importedAt }
+        return records.filter { paper in
+            let url = pdfURL(paper.id)
+            return FileManager.default.fileExists(atPath: url.path) || CoordinatedFiles.needsDownload(url)
+        }.sorted { $0.importedAt > $1.importedAt }
     }
 
     public func copyDeviceState(to destination: URL) throws {
@@ -65,12 +77,17 @@ extension LibraryStore {
     /// No databases, WAL files, API keys, or device reading state enter the shared folder.
     public func copyLibrary(to destination: URL) throws {
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        if documentsRoot != nil {
+            try CoordinatedFiles.copy(noteURL(sharedNoteID), to: destination.appendingPathComponent("workspace-note.md"))
+            let assets = noteDirectory(sharedNoteID).appendingPathComponent("assets")
+            if FileManager.default.fileExists(atPath: assets.path) { try CoordinatedFiles.copy(assets, to: destination.appendingPathComponent("workspace-assets")) }
+        }
         for paper in try papers() {
             let target = destination.appendingPathComponent(paper.id.uuidString)
             guard !FileManager.default.fileExists(atPath: target.path) else { throw CocoaError(.fileWriteFileExists) }
             try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
             do {
-                for name in ["note.md", "note.previous.md", "sources.json", "annotations.json", "assets"] {
+                for name in documentsRoot == nil ? ["note.md", "note.previous.md", "sources.json", "annotations.json", "assets"] : ["sources.json", "annotations.json"] {
                     let source = directory(paper.id).appendingPathComponent(name)
                     if FileManager.default.fileExists(atPath: source.path) { try CoordinatedFiles.copy(source, to: target.appendingPathComponent(name)) }
                 }
@@ -120,5 +137,6 @@ extension LibraryStore {
         for var paper in try papers() {
             if let path = paper.sourceRelativePath, path.hasPrefix(old + "/") { paper.sourceRelativePath = changed(path); try persist(paper) }
         }
+        try rewriteDocumentLinks(from: old, to: new)
     }
 }

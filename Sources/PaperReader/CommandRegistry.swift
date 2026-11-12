@@ -83,6 +83,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .revealFiles: "folder"
         }
     }
+    var needsNote: Bool { [.save, .importMarkdown, .exportMarkdown, .exportPDF, .insertImage, .noteWindow, .revealFiles].contains(self) }
     var needsPaper: Bool { ![.open, .openFolder, .demo, .newFolder, .sidebar, .notes].contains(self) }
 }
 
@@ -116,6 +117,8 @@ struct CommandShortcut: Codable, Equatable {
 @MainActor final class CommandRegistry: ObservableObject {
     @Published var shortcuts: [CommandID: CommandShortcut]
     @Published var hasPaper = false
+    @Published var hasNote = false
+    func isEnabled(_ command: CommandID) -> Bool { command.needsNote ? hasNote : !command.needsPaper || hasPaper }
     var handler: ((CommandID) -> Void)?
     init() {
         if let data = UserDefaults.standard.data(forKey: "commandShortcuts"),
@@ -137,7 +140,7 @@ struct CommandShortcut: Codable, Equatable {
         }
     }
     func run(_ command: CommandID) {
-        guard !command.needsPaper || hasPaper else { return }
+        guard isEnabled(command) else { return }
         handler?(command)
     }
     func conflict(_ shortcut: CommandShortcut?, for command: CommandID) -> String? {
@@ -168,7 +171,7 @@ struct CommandShortcut: Codable, Equatable {
             if shortcut?.command == true { flags.insert(.command) }; if shortcut?.option == true { flags.insert(.option) }
             if shortcut?.shift == true { flags.insert(.shift) }; if shortcut?.control == true { flags.insert(.control) }
             item.keyEquivalentModifierMask = flags; item.image = NSImage(systemSymbolName: id.symbol, accessibilityDescription: id.title)
-            item.isEnabled = !id.needsPaper || hasPaper; return item
+            item.isEnabled = isEnabled(id); return item
         }
     }
     func reset() {
@@ -184,10 +187,10 @@ struct RegisteredCommandButton: View {
         if let shortcut = registry.shortcuts[id], let char = shortcut.key.first {
             Button(id.title, systemImage: id.symbol) { registry.run(id) }
                 .keyboardShortcut(KeyEquivalent(char), modifiers: shortcut.modifiers)
-                .disabled(id.needsPaper && !registry.hasPaper)
+                .disabled(!registry.isEnabled(id))
         } else {
             Button(id.title, systemImage: id.symbol) { registry.run(id) }
-                .disabled(id.needsPaper && !registry.hasPaper)
+                .disabled(!registry.isEnabled(id))
         }
     }
 }

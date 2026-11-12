@@ -13,6 +13,17 @@ import PaperCore
                 exit(workspace.folder.resolvingSymlinksInPath().standardizedFileURL.path == expected ? 0 : 1)
             } catch { exit(1) }
         }
+        if arguments.count == 4, arguments[1] == "--pdf-annotations" {
+            do {
+                let request = try JSONDecoder().decode(PDFAnnotationRequest.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[2])))
+                if let records = request.records { try PDFFileAnnotations.write(request.url, records: records, expected: request.expected) }
+                let result = try PDFFileAnnotations.read(request.url)
+                try JSONEncoder().encode(result).write(to: URL(fileURLWithPath: arguments[3]), options: .atomic)
+                exit(0)
+            } catch LibraryError.pdfAnnotationsChanged { exit(3) }
+            catch LibraryError.pdfReadOnly { exit(4) }
+            catch { exit(1) }
+        }
         if arguments.count == 3, arguments[1] == "--export-annotations" {
             do {
                 let request = try JSONDecoder().decode(AnnotationExportRequest.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[2])))
@@ -33,7 +44,7 @@ struct PaperReaderApp: App {
             Group {
                 if let model = bootstrap.model { WorkspaceView(model: model).id(ObjectIdentifier(model))
                     .disabled(bootstrap.isSwitching)
-                    .overlay { if bootstrap.isSwitching { ProgressView(L("正在准备工作区，原文献库会保留…")).padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)) } } }
+                    .overlay { if bootstrap.isSwitching { ProgressView(L("正在准备工作区，原文献库会保留…")).padding(20).background(WorkspacePalette.paper, in: RoundedRectangle(cornerRadius: 8)) } } }
                 else {
                     VStack(spacing: 16) {
                         Text("Paper Reader").font(.system(size: 20, weight: .semibold))
@@ -65,7 +76,7 @@ struct PaperReaderApp: App {
                 UpdateSettingsView(updates: updates).tabItem { Label(L("更新"), systemImage: "arrow.triangle.2.circlepath") }
                 SettingsView(registry: bootstrap.commands).tabItem { Label(L("快捷键"), systemImage: "keyboard") }
                 if let model = bootstrap.model { AISettingsView(settings: model.ai.settings).tabItem { Label("AI", systemImage: "sparkle") } }
-            }
+            }.tint(WorkspacePalette.accent)
         }
     }
 }
@@ -80,6 +91,7 @@ struct PaperReaderApp: App {
     @Published private(set) var isSwitching = false
     private weak var applicationDelegate: AppDelegate?
     private var scopedURL: URL?
+    private var workspaceAccess: WorkspaceAccess?
     func start(delegate: AppDelegate) async {
         guard model == nil, !isStarting else { return }
         isStarting = true; error = nil; applicationDelegate = delegate
@@ -92,9 +104,17 @@ struct PaperReaderApp: App {
                 if let selected { _ = selected.folder.startAccessingSecurityScopedResource(); scopedURL = selected.folder }
             }
             let workspace = selected
+            if !ProcessInfo.processInfo.arguments.contains("--self-test") {
+                let otherVersion = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "dev.paperreader.mac").contains {
+                    $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && $0.bundleURL != Bundle.main.bundleURL
+                }
+                guard !otherVersion else { throw LibraryError.workspaceInUse }
+                let index = workspace.map { WorkspaceLocation.indexURL(for: $0.folder) } ?? root.appendingPathComponent("library.sqlite")
+                workspaceAccess = try await Task.detached { try WorkspaceAccess(indexURL: index) }.value
+            }
             let store = try await Task.detached(priority: .userInitiated) {
-                if let workspace { try workspace.prepare(); return try LibraryStore(root: workspace.data, indexURL: WorkspaceLocation.indexURL(for: workspace.folder), documentsRoot: workspace.folder) }
-                return try LibraryStore(root: root)
+                if let workspace { try workspace.prepare(); return try LibraryStore(root: workspace.data, indexURL: WorkspaceLocation.indexURL(for: workspace.folder), documentsRoot: workspace.folder, annotationHelper: Bundle.main.executableURL) }
+                return try LibraryStore(root: root, annotationHelper: Bundle.main.executableURL)
             }.value
             location = selected
             let appModel = AppModel(store: store, commands: commands)
@@ -106,7 +126,7 @@ struct PaperReaderApp: App {
             }
             else if ProcessInfo.processInfo.arguments.contains("--website-demo") { await WebsiteDemo.prepare(model: appModel) }
             else { await appModel.start(); await delegate.openPendingFiles() }
-        } catch { self.error = error.localizedDescription }
+        } catch { workspaceAccess = nil; self.error = error.localizedDescription }
         isStarting = false
     }
     private func wire(_ model: AppModel) {
@@ -134,28 +154,38 @@ struct PaperReaderApp: App {
         }
     }
     func openWorkspace(_ workspace: WorkspaceLocation, copyCurrent: Bool, remember: Bool = true) async {
-        guard !isSwitching else { return }; isSwitching = true
+        guard !isSwitching else { return }
+        if location?.folder.standardizedFileURL == workspace.folder.standardizedFileURL { return }
+        isSwitching = true
         defer { isSwitching = false }
         _ = workspace.folder.startAccessingSecurityScopedResource()
         var candidate: LibraryStore?
         do {
             if workspace.isCloud, !ProcessInfo.processInfo.arguments.contains("--self-test"), !(await Task.detached { WorkspaceLocation.isCloudFolder(workspace.folder) }.value) { throw LibraryError.notCloudFolder }
+            let access = ProcessInfo.processInfo.arguments.contains("--self-test") ? nil : try await Task.detached { try WorkspaceAccess(indexURL: WorkspaceLocation.indexURL(for: workspace.folder)) }.value
             model?.isChangingWorkspace = true
             await model?.waitForDocumentJobs(); await model?.ai.finish()
             if let editor = model?.editor, editor.ready { _ = try await editor.call("setReadOnly", true) }
             model?.editor.isFrozen = true
             await model?.save()
+            await model?.reader.annotations.flush()
             guard model?.canLeaveWorkspace != false else { throw LibraryError.externalChange }
             if copyCurrent, let old = model?.store, old.root.standardizedFileURL != workspace.data.standardizedFileURL {
-                let existing = await Task.detached { FileManager.default.fileExists(atPath: workspace.data.path) }.value
+                let existing = try await Task.detached {
+                    let files = try FileManager.default.contentsOfDirectory(at: workspace.folder, includingPropertiesForKeys: nil)
+                    return FileManager.default.fileExists(atPath: workspace.data.path) || !files.isEmpty
+                }.value
                 if !existing {
                     let staging = workspace.folder.appendingPathComponent(".paper-reader-import-" + UUID().uuidString)
                     try await old.copyLibrary(to: staging)
-                    try await Task.detached { try CoordinatedFiles.move(staging, to: workspace.data) }.value
+                    try await Task.detached {
+                        try FileManager.default.createDirectory(at: workspace.data.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try CoordinatedFiles.move(staging, to: workspace.data)
+                    }.value
                 }
             }
             try await Task.detached { try workspace.prepare() }.value
-            let store = try await Task.detached { try LibraryStore(root: workspace.data, indexURL: WorkspaceLocation.indexURL(for: workspace.folder), documentsRoot: workspace.folder) }.value
+            let store = try await Task.detached { try LibraryStore(root: workspace.data, indexURL: WorkspaceLocation.indexURL(for: workspace.folder), documentsRoot: workspace.folder, annotationHelper: Bundle.main.executableURL) }.value
             candidate = store
             _ = try await store.scanWorkspace()
             let bookmark = try await Task.detached { try WorkspaceLocation.bookmark(for: workspace.folder) }.value
@@ -164,6 +194,7 @@ struct PaperReaderApp: App {
             await model?.store.close()
             scopedURL?.stopAccessingSecurityScopedResource(); scopedURL = workspace.folder
             location = workspace
+            workspaceAccess = access
             let replacement = AppModel(store: store, commands: commands); wire(replacement)
             model = replacement; applicationDelegate?.model = replacement
             if remember {
@@ -179,18 +210,22 @@ struct PaperReaderApp: App {
         }
     }
     func useLocalLibrary() async {
-        guard !isSwitching else { return }; isSwitching = true
+        guard !isSwitching else { return }
+        if location == nil && model != nil { return }
+        isSwitching = true
         defer { isSwitching = false }
         do {
             let root = AppModel.defaultRoot
-            let store = try await Task.detached { try LibraryStore(root: root) }.value
+            let access = ProcessInfo.processInfo.arguments.contains("--self-test") ? nil : try await Task.detached { try WorkspaceAccess(indexURL: root.appendingPathComponent("library.sqlite")) }.value
+            let store = try await Task.detached { try LibraryStore(root: root, annotationHelper: Bundle.main.executableURL) }.value
             model?.isChangingWorkspace = true
             await model?.waitForDocumentJobs(); await model?.ai.finish()
             if let editor = model?.editor, editor.ready { _ = try await editor.call("setReadOnly", true) }
             model?.editor.isFrozen = true
             await model?.save()
+            await model?.reader.annotations.flush()
             guard model?.canLeaveWorkspace != false else { throw LibraryError.externalChange }
-            await model?.shutdown(); await model?.store.close(); scopedURL?.stopAccessingSecurityScopedResource(); scopedURL = nil; location = nil
+            await model?.shutdown(); await model?.store.close(); scopedURL?.stopAccessingSecurityScopedResource(); scopedURL = nil; location = nil; workspaceAccess = access
             let replacement = AppModel(store: store, commands: commands); wire(replacement)
             model = replacement; applicationDelegate?.model = replacement
             preferences.removeObject(forKey: WorkspaceLocation.bookmarkKey)
@@ -211,13 +246,26 @@ struct PaperReaderApp: App {
     private var pendingFiles: [URL] = []
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        if ProcessInfo.processInfo.arguments.contains("--self-test"), let style = ProcessInfo.processInfo.environment["PAPER_READER_TEST_APPEARANCE"], ["light", "dark"].contains(style) {
+            NSApp.appearance = NSAppearance(named: style == "dark" ? .darkAqua : .aqua)
+        }
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: url) { NSApp.applicationIconImage = icon }
         NSApp.activate(ignoringOtherApps: true)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating, let model else { return .terminateNow }
         terminating = true
-        Task { await model.shutdown(); sender.reply(toApplicationShouldTerminate: true) }
+        Task {
+            await model.save()
+            await model.reader.annotations.flush()
+            guard model.canLeaveWorkspace else {
+                terminating = false
+                sender.reply(toApplicationShouldTerminate: false)
+                return
+            }
+            await model.shutdown()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
         return .terminateLater
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

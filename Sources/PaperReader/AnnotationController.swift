@@ -16,12 +16,21 @@ enum ReaderTool: String, CaseIterable, Identifiable { case select, line, rectang
     private var paperID: UUID?
     private var pending: (UUID, [PaperAnnotation])?
     private var worker: Task<Void, Never>?
+    var hasUnsavedChanges: Bool { pending != nil || worker != nil }
     var store: LibraryStore?
     var onError: ((String) -> Void)?
     init() { overlay.onDraw = { [weak self] in self?.add([$0]) }; overlay.onCancel = { [weak self] in self?.tool = .select } }
     func load(_ id: UUID) async throws {
-        await flush(); paperID = id; records = try await store?.annotations(id) ?? []
+        guard await flush() else { throw LibraryError.pdfSaveFailed }
+        paperID = id; records = try await store?.annotations(id) ?? []
         undoStack = []; redoStack = []; tool = .select; refresh()
+    }
+    func reloadFromFile() async throws {
+        if let worker { await worker.value }
+        guard let paperID else { return }
+        let latest = try await store?.annotations(paperID) ?? []
+        undoStack.append(records); redoStack = []
+        pending = nil; records = latest; refresh()
     }
     func add(_ values: [PaperAnnotation]) {
         guard !values.isEmpty else { return }; undoStack.append(records); redoStack = []; records += values; changed()
@@ -36,11 +45,20 @@ enum ReaderTool: String, CaseIterable, Identifiable { case select, line, rectang
     private func writePending() async {
         while let (id, snapshot) = pending {
             pending = nil
-            do { try await store?.saveAnnotations(id, records: snapshot) } catch { onError?(error.localizedDescription) }
+            do { try await store?.saveAnnotations(id, records: snapshot) }
+            catch {
+                if pending == nil { pending = (id, snapshot) }
+                onError?(error.localizedDescription)
+                break
+            }
         }
         worker = nil
     }
-    func flush() async { if let worker { await worker.value }; if pending != nil { await writePending() } }
+    @discardableResult func flush() async -> Bool {
+        if let worker { await worker.value }
+        else if pending != nil { await writePending() }
+        return pending == nil
+    }
 }
 @MainActor final class AnnotationOverlay: NSView {
     weak var pdfView: PDFView?

@@ -265,15 +265,17 @@ import PaperCore
             }
             let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 48, y: 210, width: 516, height: 128))
             model.reader.annotations.add([record]); model.reader.annotations.undo()
-            try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous sidecar state")
+            try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous PDF annotation state")
             model.reader.annotations.redo(); await model.reader.annotations.flush()
             let persistedAnnotations = try await model.store.annotations(firstID)
-            try check(persistedAnnotations == [record], "Annotation redo persists an independent sidecar")
+            try check(persistedAnnotations == [record], "Annotation redo persists standard annotations inside the PDF")
             let annotatedURL = export.appendingPathComponent("annotated.pdf")
             try await PDFServices.exportAnnotated(original: originalURL, destination: annotatedURL, annotations: [record])
             let annotated = try unwrap(PDFDocument(url: annotatedURL), "Cannot read annotated export")
             try check(annotated.page(at: 0)?.annotations.isEmpty == false, "Annotated PDF export contains actual PDFKit annotations")
-            try check(try Data(contentsOf: originalURL) == originalPDF, "Drawing and annotated export preserve the original PDF bytes")
+            try check(try Data(contentsOf: originalURL) != originalPDF, "Drawing writes the original PDF in place")
+            try check(!FileManager.default.fileExists(atPath: model.store.directory(firstID).appendingPathComponent("annotations.json").path), "Annotation saves create no persistent sidecar")
+            try check(annotated.page(at: 0)?.annotations.filter { PDFFileAnnotations.isOwned($0) }.count == 1, "Annotated export preserves exactly one instance of each saved annotation")
             // A proposal goes through the production diff approval path and remains undoable.
             let beforeAI = try await model.editor.call("getMarkdown") as? String ?? ""
             model.ai.proposal = NoteProposal(paperID: firstID, before: beforeAI, after: beforeAI + "\n\nApproved AI edit.\n", reason: "Integration test")

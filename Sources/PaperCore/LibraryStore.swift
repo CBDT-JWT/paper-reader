@@ -8,11 +8,15 @@ public actor LibraryStore {
     public nonisolated let root: URL
     public nonisolated let documentsRoot: URL?
     public nonisolated let deviceDirectory: URL
-    private nonisolated let sourcePaths = OSAllocatedUnfairLock(initialState: [UUID: String]())
+    nonisolated let sharedNotePath = OSAllocatedUnfairLock(initialState: URL?.none)
+    nonisolated let sourcePaths = OSAllocatedUnfairLock(initialState: [UUID: String]())
+    nonisolated let annotationHelper: URL?
+    private var annotationBaselines: [UUID: [PaperAnnotation]] = [:]
     private var db: OpaquePointer?
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    public init(root: URL, indexURL: URL? = nil, documentsRoot: URL? = nil) throws {
+    public init(root: URL, indexURL: URL? = nil, documentsRoot: URL? = nil, annotationHelper: URL? = nil) throws {
+        self.annotationHelper = annotationHelper
         self.root = root; self.documentsRoot = documentsRoot?.resolvingSymlinksInPath().standardizedFileURL
         let indexURL = indexURL ?? root.appendingPathComponent("library.sqlite")
         self.deviceDirectory = indexURL.deletingLastPathComponent().appendingPathComponent("DeviceData", isDirectory: true)
@@ -36,7 +40,10 @@ public actor LibraryStore {
         if let documentsRoot, let path = sourcePaths.withLock({ $0[id] }), let url = try? Self.containedURL(path, in: documentsRoot) { return url }
         return directory(id).appendingPathComponent("paper.pdf")
     }
-    public nonisolated func noteURL(_ id: UUID) -> URL { directory(id).appendingPathComponent("note.md") }
+    public nonisolated func noteURL(_ id: UUID) -> URL {
+        if let documentsRoot { return sharedNotePath.withLock { $0 } ?? documentsRoot.appendingPathComponent("notes.md") }
+        return directory(id).appendingPathComponent("note.md")
+    }
     public static func revision(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
 
     public func papers() throws -> [Paper] {
@@ -94,16 +101,17 @@ public actor LibraryStore {
             }
         }
         let directory = directory(paper.id)
-        try FileManager.default.createDirectory(at: directory.appendingPathComponent("assets"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         do {
             if needsCopy { try CoordinatedFiles.copy(url, to: target) }
-            try CoordinatedFiles.write(Data("# \(paper.title)\n\n".utf8), to: noteURL(paper.id))
+            if documentsRoot == nil { try CoordinatedFiles.write(Data("# \(paper.title)\n\n".utf8), to: noteURL(paper.id)) }
             try persist(paper)
         } catch { try? FileManager.default.removeItem(at: directory); throw error }
         return paper
     }
 
     public func persist(_ paper: Paper) throws {
+        try FileManager.default.createDirectory(at: directory(paper.id), withIntermediateDirectories: true)
         var shared = paper; shared.page = 0; shared.scale = 0; shared.readingPoint = nil
         if let path = paper.sourceRelativePath { let id = paper.id; sourcePaths.withLock { $0[id] = path } }
         try CoordinatedFiles.write(encoder.encode(shared), to: directory(paper.id).appendingPathComponent("paper.json"))
@@ -143,20 +151,21 @@ public actor LibraryStore {
                 try CoordinatedFiles.write(Data(markdown.utf8), to: conflict)
                 throw LibraryError.externalChange
             }
-            try CoordinatedFiles.write(Data(existing.utf8), to: directory(id).appendingPathComponent("note.previous.md"))
+            let backup = documentsRoot == nil ? directory(id).appendingPathComponent("note.previous.md") : deviceDirectory.appendingPathComponent("notes.previous.md")
+            try CoordinatedFiles.write(Data(existing.utf8), to: backup)
             return Data(markdown.utf8)
         }
         return revision
     }
 
     public func sources(_ id: UUID) throws -> [SourceReference] {
-        let url = directory(id).appendingPathComponent("sources.json")
-        guard let data = try CoordinatedFiles.readOptional(url) else { return [] }
-        return try decoder.decode([SourceReference].self, from: data)
+        if documentsRoot != nil { return try papers().flatMap { try sourcesForPaper($0.id) } }
+        return try sourcesForPaper(id)
     }
     public func addSource(_ reference: SourceReference, image: Data? = nil) throws {
         if let asset = reference.asset, let image {
-            let url = try Self.containedURL(asset, in: directory(reference.paperID))
+            let url = try Self.containedURL(asset, in: noteDirectory(reference.paperID))
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try CoordinatedFiles.write(image, to: url)
         }
         let url = directory(reference.paperID).appendingPathComponent("sources.json")
@@ -186,17 +195,24 @@ public actor LibraryStore {
         let target = destination.appendingPathComponent(id.uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
         do {
-            for name in ["note.md", "sources.json", "paper.json", "assets"] {
-                let file = directory(id).appendingPathComponent(name)
-                if FileManager.default.fileExists(atPath: file.path) {
-                    try FileManager.default.copyItem(at: file, to: target.appendingPathComponent(name))
+            try FileManager.default.copyItem(at: noteURL(id), to: target.appendingPathComponent(noteURL(id).lastPathComponent))
+            let assets = noteDirectory(id).appendingPathComponent("assets")
+            if FileManager.default.fileExists(atPath: assets.path) {
+                try FileManager.default.copyItem(at: assets, to: target.appendingPathComponent("assets"))
+            }
+            if documentsRoot == nil {
+                for name in ["sources.json", "paper.json"] {
+                    let file = directory(id).appendingPathComponent(name)
+                    if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.copyItem(at: file, to: target.appendingPathComponent(name)) }
                 }
             }
         } catch { try? FileManager.default.removeItem(at: target); throw error }
     }
     public func importAsset(_ id: UUID, from source: URL) throws -> String {
         let name = "assets/\(UUID().uuidString).\(source.pathExtension.lowercased())"
-        try CoordinatedFiles.copy(source, to: directory(id).appendingPathComponent(name))
+        let destination = try Self.containedURL(name, in: noteDirectory(id))
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try CoordinatedFiles.copy(source, to: destination)
         return name
     }
     /// Copies only explicitly referenced, contained image assets. Never overwrites an existing asset.
@@ -214,7 +230,7 @@ public actor LibraryStore {
             for (path, source) in sources { copied[path] = try importAsset(id, from: source) }
             return copied
         } catch {
-            for path in copied.values { try? FileManager.default.removeItem(at: directory(id).appendingPathComponent(path)) }
+            for path in copied.values { try? FileManager.default.removeItem(at: noteDirectory(id).appendingPathComponent(path)) }
             throw error
         }
     }
@@ -241,12 +257,15 @@ public actor LibraryStore {
         let trash = root.appendingPathComponent(".Trash", isDirectory: true)
         try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
         try CoordinatedFiles.move(directory(id), to: trash.appendingPathComponent(id.uuidString))
+        try unindex(id)
+    }
+    func unindex(_ id: UUID) throws {
         guard let db else { return }
         var statement: OpaquePointer?
-        sqlite3_prepare_v2(db, "DELETE FROM papers WHERE id=?", -1, &statement, nil)
+        guard sqlite3_prepare_v2(db, "DELETE FROM papers WHERE id=?", -1, &statement, nil) == SQLITE_OK else { throw LibraryError.database("delete") }
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_text(statement, 1, id.uuidString, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        sqlite3_step(statement)
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw LibraryError.database("delete") }
     }
     public func trashedPapers() throws -> [Paper] {
         let folder = root.appendingPathComponent(".Trash")
@@ -262,13 +281,26 @@ public actor LibraryStore {
         let paper = try decoder.decode(Paper.self, from: Data(contentsOf: directory(id).appendingPathComponent("paper.json")))
         try index(paper); return paper
     }
-    public func annotations(_ id: UUID) throws -> [PaperAnnotation] {
-        let url = directory(id).appendingPathComponent("annotations.json")
-        guard let data = try CoordinatedFiles.readOptional(url) else { return [] }
-        return try decoder.decode([PaperAnnotation].self, from: data)
+    public func annotations(_ id: UUID) async throws -> [PaperAnnotation] {
+        var records = try await performAnnotationRequest(.init(url: pdfURL(id)))
+        let legacy = directory(id).appendingPathComponent("annotations.json")
+        if let data = try CoordinatedFiles.readOptional(legacy) {
+            let old = try decoder.decode([PaperAnnotation].self, from: data)
+            let known = Set(records.map(\.id))
+            let combined = records + old.filter { !known.contains($0.id) }
+            records = try await performAnnotationRequest(.init(url: pdfURL(id), records: combined, expected: records))
+            // Removal follows verified PDF serialization, so interrupted migration can retry safely.
+            try FileManager.default.removeItem(at: legacy)
+        }
+        annotationBaselines[id] = records
+        return records
     }
-    public func saveAnnotations(_ id: UUID, records: [PaperAnnotation]) throws {
-        try CoordinatedFiles.write(encoder.encode(records), to: directory(id).appendingPathComponent("annotations.json"))
+    public func saveAnnotations(_ id: UUID, records: [PaperAnnotation]) async throws {
+        let expected: [PaperAnnotation]
+        if let baseline = annotationBaselines[id] { expected = baseline }
+        else { expected = try await annotations(id) }
+        let saved = try await performAnnotationRequest(.init(url: pdfURL(id), records: records, expected: expected))
+        annotationBaselines[id] = saved
     }
     public func readSidecar(_ id: UUID, name: String) throws -> Data? {
         guard ["conversation.json"].contains(name) else { throw LibraryError.invalidPath }

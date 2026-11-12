@@ -16,22 +16,35 @@ struct WorkspaceView: View {
         WorkspaceSplit(model: model, ai: model.ai)
             .frame(minWidth: 1060, minHeight: 650)
             .font(Design.body)
+            .navigationTitle(model.currentPaper?.title ?? model.store.documentsRoot?.lastPathComponent ?? L("阅读工作区"))
+            .tint(WorkspacePalette.accent)
+            .background(WorkspacePalette.chrome)
+            .toolbarBackground(WorkspacePalette.toolbar, for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
-                    Button { model.commands.run(.sidebar) } label: { Image(systemName: "sidebar.left") }.help(L("文献库"))
-                    Button { model.commands.run(.open) } label: { Image(systemName: "plus") }.help(L("导入 PDF"))
-                }
-                ToolbarItem(placement: .principal) {
-                    Text(model.currentPaper?.title ?? "Paper Reader").font(Design.body).lineLimit(1)
+                    Button { model.commands.run(.sidebar) } label: { Image(systemName: "sidebar.left").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("文献库"))
+                    Button { model.commands.run(.open) } label: { Image(systemName: "plus").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("导入 PDF"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
+                    RegisteredCommandButton(registry: model.commands, id: .askAI)
+                        .labelStyle(.titleAndIcon).font(Design.body).foregroundStyle(WorkspacePalette.accent).fixedSize()
+                        .accessibilityIdentifier("toolbar.askAI")
                     Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
-                    label: { Image(systemName: "square.and.arrow.up") }.menuIndicator(.hidden).help(L("笔记与文件"))
-                    Button { model.commands.run(.notes) } label: { Image(systemName: "sidebar.right") }.help(L("笔记"))
+                    label: { Image(systemName: "square.and.arrow.up").foregroundStyle(WorkspacePalette.accent) }.menuIndicator(.hidden).help(L("笔记与文件"))
+                    Button { model.commands.run(.notes) } label: { Image(systemName: "sidebar.right").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("笔记"))
                 }
             }
             .alert("Paper Reader", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
                 Button(L("好"), role: .cancel) { model.error = nil }
+                if model.reader.annotations.hasUnsavedChanges {
+                    Button(L("重新载入 PDF 批注")) {
+                        Task {
+                            do { try await model.reader.annotations.reloadFromFile() }
+                            catch { model.error = error.localizedDescription }
+                        }
+                    }
+                }
             } message: { Text(L(model.error ?? "")) }
             .sheet(item: $model.libraryNameRequest) { request in LibraryNameSheet(model: model, request: request) }
             .sheet(isPresented: $model.metadataPresented) { MetadataPanel(model: model) }
@@ -43,18 +56,19 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
     @ObservedObject var ai: AIController
     func makeNSViewController(context: Context) -> NSSplitViewController {
         let controller = NSSplitViewController()
+        controller.splitView = WorkspaceDivider()
         controller.splitView.isVertical = true
         controller.splitView.dividerStyle = .thin
         controller.splitView.autosaveName = ProcessInfo.processInfo.arguments.contains("--self-test") ? "PaperReader.Workspace.SelfTest.v2" : "PaperReader.Workspace.v1"
-        let library = NSSplitViewItem(viewController: NSHostingController(rootView: LibraryTreeView(model: model)))
-        library.minimumThickness = 190; library.maximumThickness = 340; library.canCollapse = true
+        let library = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: LibraryTreeView(model: model).workspaceSurface()))
+        library.minimumThickness = 210; library.maximumThickness = 340; library.canCollapse = true
         library.holdingPriority = .init(260)
-        let reader = NSSplitViewItem(viewController: NSHostingController(rootView: ReaderPane(model: model, reader: model.reader)))
+        let reader = NSSplitViewItem(viewController: NSHostingController(rootView: ReaderPane(model: model, reader: model.reader).workspaceSurface()))
         reader.minimumThickness = 360; reader.holdingPriority = .init(200)
-        let note = NSSplitViewItem(viewController: NSHostingController(rootView: NotePane(model: model, editor: model.editor)))
+        let note = NSSplitViewItem(viewController: NSHostingController(rootView: NotePane(model: model, editor: model.editor).workspaceSurface()))
         note.minimumThickness = 300; note.maximumThickness = 760; note.canCollapse = true
         note.holdingPriority = .init(250)
-        let conversation = NSSplitViewItem(viewController: NSHostingController(rootView: AIConversationDrawer(ai: ai)))
+        let conversation = NSSplitViewItem(inspectorWithViewController: NSHostingController(rootView: AIConversationDrawer(ai: ai).workspaceSurface()))
         conversation.minimumThickness = 320; conversation.maximumThickness = 560; conversation.canCollapse = true
         conversation.holdingPriority = .init(240); conversation.isCollapsed = true
         controller.addSplitViewItem(library); controller.addSplitViewItem(reader); controller.addSplitViewItem(note)
@@ -66,6 +80,7 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         controller.splitViewItems[2].isCollapsed = !model.showNotes
         controller.splitViewItems[3].isCollapsed = !ai.expanded
         if let window = controller.view.window {
+            window.titlebarSeparatorStyle = .none
             let required = max(1060, controller.splitViewItems.filter { !$0.isCollapsed }.reduce(0) { $0 + $1.minimumThickness } + 8)
             window.contentMinSize.width = required
             if window.contentLayoutRect.width < required, !window.styleMask.contains(.fullScreen) {
@@ -88,6 +103,7 @@ private struct ReaderPane: View {
     @ObservedObject var model: AppModel
     @ObservedObject var reader: PDFReaderController
     @State private var pageInput = "1"
+    @State private var showPageJump = false
     @State private var showSearch = false
     @State private var showTools = false
     var body: some View {
@@ -114,33 +130,40 @@ private struct ReaderPane: View {
                             Button(L("导入 PDF…")) { model.commands.run(.open) }.buttonStyle(.borderedProminent)
                             Button(L("打开示例论文")) { model.commands.run(.demo) }.buttonStyle(.bordered)
                         }.font(Design.body).padding(.top, 4)
-                    }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .underPageBackgroundColor))
+                    }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity).background(WorkspacePalette.canvas)
                 }
-                if model.isOpening { ProgressView().padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Design.radius)) }
+                if model.isOpening { ProgressView().padding(20).background(WorkspacePalette.paper, in: RoundedRectangle(cornerRadius: Design.radius)) }
                 AIReaderOverlay(ai: model.ai).padding(.horizontal, 18).padding(.bottom, 18)
+                if reader.pageCount > 0 && !model.ai.visible {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Button { pageInput = String(reader.page + 1); showPageJump = true } label: {
+                                Text("\(reader.page + 1)/\(reader.pageCount)").font(Design.small).monospacedDigit()
+                                    .foregroundStyle(.primary).padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(WorkspacePalette.paper, in: Capsule())
+                            }.buttonStyle(.plain).help(L("跳转到页码")).accessibilityIdentifier("reader.pageBadge")
+                                .popover(isPresented: $showPageJump) {
+                                    TextField(L("跳转到页码"), text: $pageInput).font(Design.body).frame(width: 100).padding(16)
+                                        .onSubmit {
+                                            if let number = Int(pageInput), (1...reader.pageCount).contains(number) { reader.goToPage(number - 1); showPageJump = false }
+                                        }
+                                }
+                            Spacer()
+                        }
+                    }.padding(14)
+                }
                 if reader.captureMode {
-                    VStack { Label(L("拖动框选 PDF 区域 · Esc 取消"), systemImage: "viewfinder").font(Design.small).padding(10).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: Design.radius)); Spacer() }.padding(.top, 16).allowsHitTesting(false)
+                    VStack { Label(L("拖动框选 PDF 区域 · Esc 取消"), systemImage: "viewfinder").font(Design.small).padding(10).background(WorkspacePalette.chrome, in: RoundedRectangle(cornerRadius: Design.radius)); Spacer() }.padding(.top, 16).allowsHitTesting(false)
                 }
             }
-            HStack {
-                Button { model.commands.run(.askAI) } label: { Label(L("询问 AI"), systemImage: "sparkle") }.buttonStyle(.plain)
-                Text("·").foregroundStyle(.tertiary)
-                Text("PDF")
-                Spacer()
-                if reader.pageCount > 0 {
-                    TextField(L("页码"), text: $pageInput).frame(width: 32).textFieldStyle(.plain).multilineTextAlignment(.trailing)
-                        .onSubmit { if let number = Int(pageInput) { reader.goToPage(number - 1) } }
-                    Text(L("页")).foregroundStyle(.secondary)
-                }
-            }.font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34)
-                .onChange(of: reader.page) { _, value in pageInput = String(value + 1) }
-        }.background(Color(nsColor: .windowBackgroundColor))
+
+        }.background(WorkspacePalette.chrome)
     }
     private func readerToolbar(compact: Bool) -> some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
                 if !compact { tool(.previousPage) }
-                Text("\(reader.page + 1) / \(reader.pageCount)").font(Design.small).monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 46)
                 if !compact { tool(.nextPage) }
             }.fixedSize()
             Spacer(minLength: 8)
@@ -163,7 +186,7 @@ private struct ReaderPane: View {
         }
     }
     private func tool(_ id: CommandID) -> some View {
-        Button { model.commands.run(id) } label: { Image(systemName: id.symbol).foregroundStyle(id == .capture && reader.captureMode ? Color.accentColor : .primary) }
+        Button { model.commands.run(id) } label: { Image(systemName: id.symbol).foregroundStyle(id == .capture && reader.captureMode ? WorkspacePalette.accent : .primary) }
             .buttonStyle(WorkspaceIconStyle()).help(id.title + (model.commands.shortcuts[id].map { " (\($0.display))" } ?? ""))
     }
 }
@@ -176,8 +199,8 @@ private struct FocusToggleButton: View {
         HStack(spacing: 2) {
             Button { registry.run(.focus) } label: {
                 Label(L("聚焦"), systemImage: CommandID.focus.symbol).font(Design.body).padding(.horizontal, 9).frame(height: 30)
-                    .foregroundStyle(focus.enabled ? Color.accentColor : .primary)
-                    .background(focus.enabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
+                    .foregroundStyle(focus.enabled ? WorkspacePalette.accent : .primary)
+                    .background(focus.enabled ? WorkspacePalette.accent.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
             }.buttonStyle(.plain).fixedSize().accessibilityIdentifier("reader.focus")
                 .help(L("全屏暗场聚焦") + (registry.shortcuts[.focus].map { " (\($0.display))" } ?? ""))
                 .accessibilityLabel(L("全屏暗场聚焦"))
@@ -216,11 +239,11 @@ private struct NotePane: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Label(L("阅读笔记"), systemImage: "square.and.pencil").font(Design.body).fontWeight(.medium)
+                Label(model.store.hasSharedNote ? model.store.noteURL(model.store.sharedNoteID).lastPathComponent : L("阅读笔记"), systemImage: "square.and.pencil").font(Design.body).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                 Spacer()
                 Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .insertImage, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                 label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 30, height: 30)
-            }.padding(.horizontal, 20).frame(height: 50)
+            }.padding(.horizontal, 20).frame(height: 50).background(WorkspacePalette.chrome)
             HStack(spacing: 4) {
                 Menu {
                     Button(L("一级标题")) { editor.format("h1") }; Button(L("二级标题")) { editor.format("h2") }; Button(L("三级标题")) { editor.format("h3") }
@@ -236,14 +259,14 @@ private struct NotePane: View {
                 formatButton("table", "tablecells", L("插入表格"))
                 Button { model.commands.run(.insertImage) } label: { Image(systemName: "photo") }.buttonStyle(.plain).help(L("插入图片"))
                 Spacer(minLength: 0)
-            }.font(Design.body).foregroundStyle(.secondary).padding(.horizontal, 14).frame(height: 40).disabled(model.selectedID == nil)
+            }.font(Design.body).foregroundStyle(.secondary).padding(.horizontal, 14).frame(height: 40).disabled(model.activeNoteID == nil)
             ZStack {
                 NativeEditorView(editor: editor)
-                if model.selectedID == nil {
+                if model.activeNoteID == nil {
                     VStack(spacing: 12) {
                         Text(L("让理解沉淀下来")).font(Design.title)
                         Text(L("每篇论文都有一份独立的 Markdown 笔记。\n摘录和截图可以一键回到原文。")).font(Design.body).foregroundStyle(.secondary).multilineTextAlignment(.center).lineSpacing(5)
-                    }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(nsColor: .textBackgroundColor))
+                    }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(WorkspacePalette.paper)
                 }
             }
             HStack(spacing: 6) {
@@ -251,8 +274,8 @@ private struct NotePane: View {
                 Text(L(model.status)).lineLimit(1)
                 Spacer(minLength: 0)
                 Text("Markdown").foregroundStyle(.tertiary)
-            }.font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34)
-        }.background(Color(nsColor: .textBackgroundColor))
+            }.font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34).background(WorkspacePalette.chrome)
+        }.background(WorkspacePalette.paper)
         .contextMenu { ForEach([CommandID.capture, .quote, .save, .exportMarkdown, .exportPDF, .insertImage]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
     }
     private func formatButton(_ action: String, _ symbol: String, _ label: String) -> some View {
@@ -267,3 +290,15 @@ private struct NativeEditorView: NSViewRepresentable {
 }
 
 import WebKit
+
+private extension View {
+    func workspaceSurface() -> some View {
+        clipShape(RoundedRectangle(cornerRadius: Design.radius, style: .continuous))
+            .padding(.horizontal, 5).padding(.top, 6).padding(.bottom, 10)
+            .background(WorkspacePalette.chrome)
+    }
+}
+
+@MainActor private final class WorkspaceDivider: NSSplitView {
+    override var dividerColor: NSColor { WorkspacePalette.chromeNS }
+}

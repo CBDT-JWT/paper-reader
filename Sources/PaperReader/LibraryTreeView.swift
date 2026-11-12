@@ -16,7 +16,7 @@ struct LibraryTreeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                Text(L("文献库")).font(Design.title)
+                Text(L("文献库")).font(Design.body).fontWeight(.semibold).lineLimit(1).layoutPriority(1)
                 Spacer(minLength: 0)
                 Button { model.commands.run(.openFolder) } label: { Image(systemName: "folder") }
                     .buttonStyle(WorkspaceIconStyle()).help(L("打开文件夹…")).accessibilityLabel(L("打开文件夹…"))
@@ -32,24 +32,24 @@ struct LibraryTreeView: View {
                 } label: { Image(systemName: "arrow.up.arrow.down").frame(width: 30, height: 30) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 30)
                     .help(L("排序方式")).accessibilityLabel(L("排序方式"))
-            }.padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 16)
+            }.padding(.horizontal, 12).padding(.top, 16).padding(.bottom, 14)
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField(L("搜索论文"), text: $model.query).textFieldStyle(.plain)
-            }.font(Design.body).padding(10).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8)).padding(.horizontal, 12)
+            }.font(Design.body).padding(10).background(WorkspacePalette.paper.opacity(0.75), in: RoundedRectangle(cornerRadius: 8)).padding(.horizontal, 12)
             Button { model.activeFolderID = nil } label: {
                 HStack { Text(L("所有论文")); Spacer(); Text("\(model.papers.count)").monospacedDigit() }
-                    .font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.top, 20).padding(.bottom, 10).contentShape(Rectangle())
+                    .font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 10).contentShape(Rectangle())
             }.buttonStyle(.plain)
             NativeLibraryOutline(model: model)
             HStack(spacing: 8) {
-                Image(systemName: "internaldrive").foregroundStyle(.tertiary)
+                Image(systemName: model.workspaceIsCloud ? "icloud" : "folder").foregroundStyle(WorkspacePalette.accent)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.workspaceIsCloud ? L("iCloud Drive 工作区") : model.store.documentsRoot?.lastPathComponent ?? L("本地文献库")).font(.system(size: 12, weight: .medium))
                     Text(model.workspaceIsCloud ? model.cloudStatus : L("PDF 与笔记，保存在本机")).font(Design.small).foregroundStyle(.secondary)
                 }
             }.padding(18)
-        }.background(Color(nsColor: .windowBackgroundColor))
+        }.background(WorkspacePalette.sidebar)
     }
 }
 @MainActor func handleLibraryDrop(_ providers: [NSItemProvider], folderID: UUID?, model: AppModel) -> Bool {

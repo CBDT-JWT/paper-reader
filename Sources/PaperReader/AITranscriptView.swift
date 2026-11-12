@@ -69,7 +69,7 @@ struct AITranscriptView: NSViewRepresentable {
             default: break
             }
         }
-        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
             if action.request.url?.scheme == "paperreader-resource", action.request.url?.host == "editor" { decisionHandler(.allow) }
             else { decisionHandler(.cancel) }
         }

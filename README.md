@@ -1,12 +1,17 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.3 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.4 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
-0.4.0 新增 **打开已有文件夹** 与 **可选 iCloud Drive 工作区**。PDF 原地打开，文件树保留原有层级；笔记、截图和批注随所选云盘文件夹同步，SQLite、阅读位置、API 密钥和 AI 会话留在本机。原本机文献库保留。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
+打开已有文件夹后，PDF 按原有层级原地使用，整个工作区共用根目录的一份 Markdown。新图片存入根目录 assets，批注直接保存到对应 PDF。可选 iCloud Drive 工作区通过普通文件同步，索引、阅读位置、草稿、API 密钥和 AI 会话留在本机。正式分发使用 Developer ID 签名、Apple 公证与 Sparkle 签名在线更新；[签名与公证验证](docs/RELEASE_VALIDATION.md)；当前下载以 [GitHub Releases](https://github.com/CBDT-JWT/paper-reader/releases) 为准。
 
 ## 本轮交互修复
+
+- 0.4.4 将文件夹工作区改为一份共享 Markdown。优先打开 notes.md，根目录仅有一份 .md 时直接使用该文件，其余情况新建 notes.md。切换 PDF 保留笔记内容、光标与撤销历史。新资源进入 assets，已有 Markdown 的相对图片路径原地使用。
+- 旧 .paper-reader 中的逐篇笔记合并到共享笔记，图片按原论文 ID 分目录迁移到 assets，来源转换为携带相对 PDF 路径及坐标的链接。原笔记恢复副本和文献索引迁入本机 Application Support。新打开的普通文件夹直接使用文件系统。
+- 高亮、直线、矩形和自由绘制以标准 PDF 注释写回原文件，现有第三方注释保留。旧 annotations.json 验证写入成功后移除。保存使用文件协调与原子替换，失败编辑保留在窗口，冲突可重新载入并通过撤销恢复当前编辑。
+- 扁平界面采用图标的浅蓝顶部、暖白内容区和中性 PDF 背景。“询问 AI”位于顶部工具栏，页码使用 PDF 左下角胶囊。普通面板统一 8 pt 圆角，分栏使用留白；窗口、工具栏按钮、侧栏和右侧会话检查器沿用 AppKit 的系统行为。顶部品牌色按产品要求定制。[文件与界面验证](docs/FOLDER_DOCUMENTS.md)
 
 - 0.4.3 聚焦导航保留文本行 ID，修复页脚、版权文字和公式文字框重叠时反复命中上一行的问题；重复出现的实际栏间空隙用于拆开被 PDF 逻辑标签合并的两栏。手动与自动阅读均可继续跨栏。[聚焦回归验证](docs/FOCUS_MOTION.md)
 - 图片、矢量图中的标签及连续图注会从聚焦顺序中排除。正文上下文在图形边界处分段，经过图片时使用淡出与平移过渡。文字坐标通过 PDFKit 的文本选区范围提取，修复部分论文中字符索引与原文位置错位的问题。
@@ -50,8 +55,8 @@ cd ..
 | 阶段 | 当前能力 |
 | --- | --- |
 | Phase 1 | 真实 PDFKit 与 WKWebView 共存、可调三栏、PDF 坐标截图、Markdown 往返校验、离线 KaTeX 源码编辑与渲染 |
-| Phase 2 | 文件夹树、搜索排序、拖入 PDF、重命名、移动、可恢复删除；UUID 关联笔记；截图和摘录来源回跳；自动保存；Markdown 与资源打包、原生笔记 PDF 导出；菜单、工具栏、右键命令 |
-| Phase 3 | 独立批注侧文件，高亮、直线、矩形、自由绘制、临时激光笔、撤销重做、带批注 PDF 导出；多栏聚焦与整屏暗场；快捷键录制与冲突提示；Crossref / arXiv 元数据和四种参考文献格式；阅读位置恢复及最近三个 PDF 缓存 |
+| Phase 2 | 文件夹树、搜索排序、拖入 PDF、重命名、移动、可恢复删除；共享文件夹笔记及原库 UUID 笔记；截图和摘录来源回跳；自动保存；Markdown 与资源打包、原生笔记 PDF 导出；菜单、工具栏、右键命令 |
+| Phase 3 | 原 PDF 内高亮、直线、矩形、自由绘制、临时激光笔、撤销重做、带批注 PDF 导出；多栏聚焦与整屏暗场；快捷键录制与冲突提示；Crossref / arXiv 元数据和四种参考文献格式；阅读位置恢复及最近三个 PDF 缓存 |
 | Phase 4 | Codex App Server、OpenAI 兼容云 API、本地 HTTP 推理服务接口；模型列表；流式多轮问答、停止、会话恢复；选区文字/图像与论文页上下文；来源页链接；外部学术检索；笔记差异确认、版本检查与撤销 |
 
 界面、菜单、设置、编辑器弹窗与辅助功能标签统一跟随系统语言，提供简体中文和英文，其他语言回退英文。更改系统或单应用语言后重新启动生效；论文正文、用户笔记和文献标题保持原文。工具栏根据宽度收纳操作，图标菜单不再将下拉箭头挤在图标旁。
@@ -62,12 +67,12 @@ cd ..
 
 ## 打开文件夹与 iCloud Drive
 
-- **文件 → 打开文件夹…（Cmd+Shift+O）**，或文件树顶部的文件夹按钮：选择已有目录，递归显示 PDF 和子文件夹。也可把目录拖入文件树。PDF 原地打开，不重复导入；笔记和资源放在该目录的隐藏 `.paper-reader` 文件夹。文件名排序保持原有自然排序。
+- **文件 → 打开文件夹…（Cmd+Shift+O）**，或文件树顶部的文件夹按钮：选择已有目录，递归显示 PDF 和子文件夹。也可把目录拖入文件树。PDF 原地打开，不重复导入；整个工作区共用根目录的一份 Markdown，新图片放入根目录 assets，批注写入原 PDF。文件名排序保持原有自然排序。
 - **Paper Reader → 设置… → 文献库与 iCloud → 启用 iCloud Drive…**：在 iCloud Drive 中新建并选择一个专用文件夹。首次会复制当前库的论文、笔记、图片、来源和批注，原库保留；选择已有工作区则直接打开，不自动合并另一文献库。
-- 另一台 Mac 安装本应用后，用“打开文件夹”选择同一 iCloud Drive 目录。两台 Mac 需使用同一 Apple 账户并开启云盘，文件可用性与上传进度由 macOS 管理。侧栏显示当前笔记的上传状态；这不代表整个库都已上传。
-- 在文件夹工作区重命名或移动 PDF/文件夹会修改真实文件路径；论文 UUID 和关联笔记保持不变。移除论文仅将其应用数据放入工作区回收站，保留原 PDF。为保护已有内容，非空的真实文件夹不能直接移除。
+- 另一台 Mac 安装本应用后，用“打开文件夹”选择同一 iCloud Drive 目录。两台 Mac 需使用同一 Apple 账户并开启云盘，文件可用性与上传进度由 macOS 管理。侧栏显示共享笔记的上传状态，PDF 和图片的上传状态由系统管理。
+- 在文件夹工作区重命名或移动 PDF/文件夹会修改真实文件路径；共享笔记保留，PDF 来源链接随应用内路径变化更新。移除论文仅将其应用数据放入工作区回收站，保留原 PDF。为保护已有内容，非空的真实文件夹不能直接移除。
 - 已下载文件可离线阅读和记录。每次编辑先写独立的本机草稿日志，再尝试写入工作区；重开时恢复未保存草稿，若文件也变过，则先备份双方内容再选择版本。检测到笔记版本冲突会保留副本；这不是实时协同编辑器，不提供自动逐段合并。
-- 要返回原库，在上述设置中点击 **打开原本机文献库**。不要只备份 SQLite：备份所选工作区整个目录（包含 `.paper-reader`），并另外备份本机 `DeviceData` 可保留阅读位置和对话。
+- 要返回原库，在上述设置中点击 **打开原本机文献库**。不要只备份 SQLite：备份所选工作区整个目录（包含 Markdown 与 assets），并另外备份本机 `DeviceData` 可保留阅读位置和对话。
 
 ## 阅读聚焦
 
@@ -128,19 +133,27 @@ Library/
     note.previous.md             上一个完整版本
     note-conflict-<UUID>.md       冲突时保留自己的版本
     sources.json                 摘录/截图来源页和 PDF 坐标
-    annotations.json             独立批注
     assets/<UUID>.png
 ```
 
-截图、笔记、批注和 AI 编辑不修改原始 PDF。带批注 PDF 导出为新文件，PDFKit 注释图在独立辅助进程的主线程构建和序列化，避免阻塞阅读界面。默认导入保留原件；文件夹工作区则直接链接原 PDF。应用内重命名/整理文件夹不改变论文 UUID。
+打开文件夹时的真实文件布局如下。索引和恢复记录放在本机 Application Support。
 
-独立本机草稿日志加 350 ms 工作区自动保存，切换/退出/导出前同步编辑器。保存使用原子替换和版本校验；每两秒检查当前笔记的外部变更，无本地待保存内容时重新载入，有冲突则保留副本并停止自动覆盖。尚无图形合并器：在 Finder 比较冲突文件、合并后重新打开论文。退出后可用 `note.previous.md` 恢复上一版本。
+```text
+研究目录/
+  notes.md                       整个工作区共用的 UTF-8 Markdown
+  assets/                        新截图与插入图片
+  原有文件夹/论文.pdf               保持原有位置，批注直接写入这个 PDF
+```
 
-备份应退出应用后复制整个 Library。丢失 SQLite 索引可由 `paper.json` 重建；不要删掉 manifest。文献树菜单可恢复应用回收站中的论文。笔记导出生成含 `.md`、相对资源和来源索引的目录，不复制论文 PDF。`paperreader://` 来源链接需要本应用和对应文献索引。
+批注写回原 PDF，导出带批注 PDF 会另存一份文件。PDFKit 注释图在独立辅助进程的主线程构建和序列化，保持阅读界面响应。默认本机管理库的导入动作保留外部原件，其批注写入导入副本；文件夹工作区写入所打开的原 PDF。应用内重命名/整理文件夹不改变本机论文 UUID。
+
+独立本机草稿日志加 350 ms 工作区自动保存，切换/退出/导出前同步编辑器。保存使用原子替换和版本校验；每两秒检查当前笔记的外部变更，无本地待保存内容时重新载入，有冲突则保留副本并停止自动覆盖。尚无图形合并器：在 Finder 比较冲突文件、合并后重新打开论文。共享笔记的上一版本保存在本机 DeviceData/notes.previous.md，原管理库仍使用 note.previous.md。
+
+备份应退出应用后复制整个 Library。丢失 SQLite 索引可由 `paper.json` 重建；不要删掉 manifest。文献树菜单可恢复应用回收站中的论文。笔记导出生成含 `.md`、相对资源和来源索引的目录，不复制论文 PDF。共享笔记的新来源链接携带相对 PDF 路径和页码坐标，可随整个文件夹迁移。本机管理库的旧 UUID 来源链接使用对应文献索引。
 
 ## 验证与限制
 
-运行 `./scripts/test.sh`，在隔离临时库中执行 39 项 Swift 测试、12 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查，并运行依赖审计。设置 `PAPER_READER_TEST_FOCUS_PDF=/绝对路径/论文.pdf` 可增加外部 PDF 的只读逐行、跨栏及图片聚焦回归。设置 `PAPER_READER_LIVE_CODEX=1` 会验证 Finder 环境下的真实 Codex 启动、模型列表及合成问题的流式回答。`PAPER_READER_LIVE_TESTS=1` 还会运行真实 Crossref 与图像理解检查。测试记录见 [聚焦验证](docs/FOCUS_MOTION.md)、[AI 验证](docs/AI_VALIDATION.md) 和 [工作区验证](docs/ICLOUD_VALIDATION.md)。
+运行 `./scripts/test.sh`，在隔离临时库中执行 50 项 Swift 测试、12 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查，并运行依赖审计。设置 `PAPER_READER_TEST_FOCUS_PDF=/绝对路径/论文.pdf` 可增加外部 PDF 的只读逐行、跨栏及图片聚焦回归。设置 `PAPER_READER_LIVE_CODEX=1` 会验证 Finder 环境下的真实 Codex 启动、模型列表及合成问题的流式回答。`PAPER_READER_LIVE_TESTS=1` 还会运行真实 Crossref 与图像理解检查。测试记录见 [聚焦验证](docs/FOCUS_MOTION.md)、[AI 验证](docs/AI_VALIDATION.md) 和 [工作区验证](docs/ICLOUD_VALIDATION.md)。
 
 本版的明确边界：
 

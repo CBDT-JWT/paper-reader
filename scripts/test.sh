@@ -20,6 +20,7 @@ MOCK_PORT="$(cat "$TEST_ROOT/port")"
 for LANGUAGE in en zh-Hans; do
   # Launch Services establishes the normal foreground activation contract on recent macOS.
   open -n -W "$BUILD_DIR/Apps/Paper Reader.app" \
+    --env "PAPER_READER_TEST_APPEARANCE=${PAPER_READER_TEST_APPEARANCE:-}" \
     --env "PAPER_READER_LIBRARY=$TEST_ROOT/$LANGUAGE/Library" \
     --env "PAPER_READER_MOCK_API=http://127.0.0.1:$MOCK_PORT/v1" \
     --env "PAPER_READER_SKIP_INTERACTIVE_FOCUS=${PAPER_READER_SKIP_INTERACTIVE_FOCUS:-0}" \

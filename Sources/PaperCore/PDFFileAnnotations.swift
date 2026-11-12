@@ -7,13 +7,13 @@ public enum PDFFileAnnotations {
     private static let recordKey = PDFAnnotationKey(rawValue: "/PaperReaderRecord")
     private static let legacyRecordKey = PDFAnnotationKey(rawValue: "PaperReaderRecord")
     private static let nameKey = PDFAnnotationKey.name
-    private static let legacyNameKey = PDFAnnotationKey(rawValue: "NM")
     private static func encodedRecord(_ annotation: PDFAnnotation) -> String? {
         annotation.value(forAnnotationKey: recordKey) as? String ?? annotation.value(forAnnotationKey: legacyRecordKey) as? String
     }
     public static func isOwned(_ annotation: PDFAnnotation) -> Bool {
-        let name = annotation.value(forAnnotationKey: nameKey) as? String ?? annotation.value(forAnnotationKey: legacyNameKey) as? String
-        return name?.hasPrefix("PaperReader-") == true && encodedRecord(annotation) != nil
+        // Earlier PDFKit versions omit /NM during serialization. The namespaced
+        // embedded record remains the authoritative ownership marker.
+        encodedRecord(annotation) != nil
     }
     @MainActor private static func records(in document: PDFDocument) throws -> [PaperAnnotation] {
         var records: [PaperAnnotation] = []
@@ -86,17 +86,7 @@ public enum PDFFileAnnotations {
             guard let result = document.dataRepresentation(), let verified = PDFDocument(data: result),
                   verified.pageCount == document.pageCount else { throw LibraryError.invalidPDF }
             let actual = try records(in: verified)
-            guard actual == desired.sorted(by: { $0.id.uuidString < $1.id.uuidString }) else {
-                if ProcessInfo.processInfo.environment["PAPER_READER_ANNOTATION_DIAGNOSTICS"] == "1" {
-                    print("Annotation verification expected", desired, "actual", actual)
-                    for page in 0..<verified.pageCount {
-                        for item in verified.page(at: page)?.annotations ?? [] {
-                            print("Roundtrip annotation", item.annotationKeyValues)
-                        }
-                    }
-                }
-                throw LibraryError.invalidPDF
-            }
+            guard actual == desired.sorted(by: { $0.id.uuidString < $1.id.uuidString }) else { throw LibraryError.invalidPDF }
             return result
         }
     }

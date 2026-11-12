@@ -234,6 +234,24 @@ final class FolderDocumentTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(reopened, [line])
         await library.close()
     }
+    func testEmbeddedRecordSurvivesMissingStandardAnnotationName() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let pdf = root.appendingPathComponent("paper.pdf")
+        try DemoPaper.create(at: pdf)
+        let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 40, y: 60, width: 120, height: 80))
+        try await MainActor.run {
+            let document = try XCTUnwrap(PDFDocument(url: pdf))
+            let annotation = PDFAnnotation(bounds: record.rect.cgRect, forType: .square, withProperties: nil)
+            XCTAssertTrue(annotation.setValue(String(decoding: try JSONEncoder().encode(record), as: UTF8.self),
+                                              forAnnotationKey: PDFAnnotationKey(rawValue: "/PaperReaderRecord")))
+            XCTAssertNil(annotation.value(forAnnotationKey: .name))
+            document.page(at: 0)!.addAnnotation(annotation)
+            XCTAssertTrue(document.write(to: pdf))
+            XCTAssertEqual(try PDFFileAnnotations.read(pdf), [record])
+            try PDFFileAnnotations.write(pdf, records: [], expected: [record])
+            XCTAssertEqual(PDFDocument(url: pdf)?.page(at: 0)?.annotations.count, 0)
+        }
+    }
     func testConcurrentPDFEditsRejectStaleWritesWithoutLosingExternalWork() async throws {
         let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
         try DemoPaper.create(at: root.appendingPathComponent("paper.pdf"))

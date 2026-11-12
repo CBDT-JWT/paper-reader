@@ -2,7 +2,16 @@
 
 
 
-## Current release 0.4.6 / build 11
+
+## Current release 0.4.7 / build 12
+
+Light-mode panels, sidebar, PDF canvas, note and conversation surfaces now use white. The actual bundled editor passed the existing appearance check with `rgb(255, 255, 255)` in both languages. The scoped native workspace run passed 30 checks per language. [Source CI 43265296997](https://github.com/CBDT-JWT/paper-reader/actions/runs/43265296997) passed the core/editor tests, optimized packaging and signature checks. [Website deployment 43265725282](https://github.com/CBDT-JWT/Home/actions/runs/43265725282) succeeded.
+
+Published [v0.4.7](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.7) from `7f5535f`. Downloaded the public 11,067,822-byte DMG and verified SHA-256 `5d6bc05702a9d45224ac693fc44aedeaf6efeefd8e02a200842060c07359a856` against the checksum and live manifest. Application notarization `bf383cfe-bd57-424c-bfe8-afd19340061d` and DMG notarization `2f72f16a-c49e-4054-8eda-c8992f6bc366` were Accepted. Read-only mounting confirmed version/build and the Applications link. Strict signatures, stapled tickets and Gatekeeper passed for the public app and DMG. The live HTTPS appcast matches the repository and passes Sparkle's official signature verifier.
+
+The actual installed 0.4.6 updated through Sparkle to 0.4.7 (12), verified in About. The 27-paper workspace reopened at the existing reading position. The installed executable, Info.plist and signature manifest match the public app, its signature/ticket/Gatekeeper checks pass, and its bundled editor CSS contains the white surface token. Earlier full reader, signed-workspace and AI regression evidence remains attributed to the historical versions below.
+
+## Historical release 0.4.6 / build 11
 
 Published [v0.4.6 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.6) from source `69be249`. The final Ask AI control is an icon-only button directly beside the reading tools in the PDF toolbar, with a localized name and configured shortcut in its tooltip. This placement follows the user's final instruction. The reader retains the light pastel-blue native top chrome, neutral PDF canvas and bottom-left page capsule.
 

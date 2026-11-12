@@ -1,20 +1,20 @@
 {
-  "version": "0.4.6",
+  "version": "0.4.7",
   "status": "stable",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
-  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.6/PaperReader-0.4.6-arm64.dmg",
-  "sha256": "518bcea1ae7b9c99cff09aa8d1ef5e5710a178ca56960a36a9abc5e925767dbc",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.7/PaperReader-0.4.7-arm64.dmg",
+  "sha256": "5d6bc05702a9d45224ac693fc44aedeaf6efeefd8e02a200842060c07359a856",
   "notarized": true,
-  "build": "11",
-  "size": 11068088,
+  "build": "12",
+  "size": 11067822,
   "teamID": "Q83556V27Y",
   "applicationNotarization": {
-    "id": "f56d1b7d-06ac-48d8-89cd-3b38e73e975d",
+    "id": "bf383cfe-bd57-424c-bfe8-afd19340061d",
     "status": "Accepted"
   },
   "dmgNotarization": {
-    "id": "0a2c797a-e00c-475c-a7f5-6c3796b0cc02",
+    "id": "2f72f16a-c49e-4054-8eda-c8992f6bc366",
     "status": "Accepted"
   },
   "publicDownloadVerified": true,
@@ -39,13 +39,13 @@
   "interactiveFocusChecksSkipped": 0,
   "liveSignedFeedVerified": true,
   "automaticInstallRelaunchValidated": true,
-  "automaticUpdateSourceVersion": "0.4.5",
-  "automaticUpdateSourceBuild": "10",
+  "automaticUpdateSourceVersion": "0.4.6",
+  "automaticUpdateSourceBuild": "11",
   "installedPublicArtifactVersionVerified": true,
   "installedPublicArtifactSignatureVerified": true,
   "liveWebsiteMetadataVerified": true,
-  "githubVerificationRun": 43256198317,
-  "websiteDeploymentRun": 43257401619,
+  "githubVerificationRun": 43265296997,
+  "websiteDeploymentRun": 43265725282,
   "actualLocalModelInferenceValidated": false,
   "workspaceSignedReleaseChecks": {
     "en": 30,
@@ -56,5 +56,7 @@
   "earlierMacOSCoreAndPackagingCIPassed": true,
   "twoMacConcurrentICloudRuntimeValidated": false,
   "iconOnlyAIActionBesideReadingToolsVerified": true,
-  "legacyPageCitationRepairVerified": true
+  "legacyPageCitationRepairVerified": true,
+  "workspaceSignedReleaseChecksSourceVersion": "0.4.6",
+  "whiteLightModeEditorRuntimeVerified": true
 }

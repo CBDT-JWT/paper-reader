@@ -18,7 +18,7 @@ An owned helper process performs PDFKit reading and serialization on its main th
 
 ## Native appearance
 
-The window and toolbar use system controls, with light-blue top chrome requested for the product. The PDF canvas uses a neutral warm light background or neutral dark background. Ordinary content panels share an 8 pt radius and small gutters. Divider lines, custom input outlines and PDF page shadows are removed. Sidebar and conversation split items use AppKit sidebar and inspector semantics. Toolbar and window geometry follow the system, and their title identifies the paper or folder. Hover transitions honor Reduce Motion. Offline note/chat styles follow the effective native light or dark appearance.
+The window and toolbar use system controls, with light-blue top chrome requested for the product. The PDF canvas uses a white background in light mode or a neutral dark background. Ordinary content panels share an 8 pt radius and small gutters. Divider lines, custom input outlines and PDF page shadows are removed. Sidebar and conversation split items use AppKit sidebar and inspector semantics. Toolbar and window geometry follow the system, and their title identifies the paper or folder. Hover transitions honor Reduce Motion. Offline note/chat styles follow the effective native light or dark appearance.
 
 Apple's [toolbar guidance](https://developer.apple.com/design/human-interface-guidelines/toolbars) recommends standard components and reduced custom background styling. The light-blue titlebar is an explicit product customization. [Material guidance](https://developer.apple.com/design/human-interface-guidelines/materials) reserves Liquid Glass for functional navigation layers. The content panes use flat opaque surfaces.
 

@@ -250,7 +250,7 @@ struct PaperReaderApp: App {
             NSApp.appearance = NSAppearance(named: style == "dark" ? .darkAqua : .aqua)
         }
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: url) { NSApp.applicationIconImage = icon }
-        NSApp.activate(ignoringOtherApps: true)
+        if !ProcessInfo.processInfo.arguments.contains("--workspace-self-test") { NSApp.activate(ignoringOtherApps: true) }
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminating, let model else { return .terminateNow }

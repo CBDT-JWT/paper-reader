@@ -107,26 +107,8 @@ import PaperCore
         guard token == selectionToken else { return }
         do {
             guard let paper = papers.first(where: { $0.id == id }) else { throw LibraryError.missingPaper }
-            let recovered = try await store.recoverCloudNoteVersions(id)
-            if !recovered.isEmpty { error = L("iCloud 冲突版本已保留为独立副本，可在笔记所在文件夹查看。") }
-            let snapshot = try await store.readNote(id)
-            var markdown = snapshot.markdown
-            try await draftTasks[id]?.value
-            if let draft = try await drafts.read(store.noteIdentity(id)) {
-                if draft.markdown == snapshot.markdown { try await drafts.clear(store.noteIdentity(id), matching: draft.markdown) }
-                else if draft.baseRevision == snapshot.revision { markdown = draft.markdown }
-                else {
-                    let recovery = try await drafts.archive(store.noteIdentity(id), draft: draft, current: snapshot.markdown)
-                    let alert = NSAlert(); alert.messageText = L("发现未保存的本机草稿")
-                    alert.informativeText = L("文件版本与本机草稿不同。两份内容已分别备份，可选择要继续编辑的版本。")
-                    alert.addButton(withTitle: L("恢复本机草稿")); alert.addButton(withTitle: L("使用文件版本"))
-                    alert.addButton(withTitle: L("查看备份"))
-                    let result = alert.runModal()
-                    if result == .alertFirstButtonReturn { markdown = draft.markdown }
-                    else if result == .alertThirdButtonReturn { NSWorkspace.shared.open(recovery) }
-                    try await drafts.clear(store.noteIdentity(id), matching: draft.markdown)
-                }
-            }
+            let (snapshot, recoveredMarkdown) = try await loadNote(id)
+            var markdown = recoveredMarkdown
             guard token == selectionToken else { return }
             // State callbacks from the old document must not overwrite the new paper's reading position.
             reader.onStateChange = nil
@@ -136,7 +118,8 @@ import PaperCore
             try await reader.load(url: store.pdfURL(id), page: paper.page, scale: paper.scale, readingPoint: paper.readingPoint)
             guard token == selectionToken else { return }
             let keepSharedEditor = store.hasSharedNote && editor.documentID.map { revisions[$0] == snapshot.revision } == true && markdown == snapshot.markdown
-            selectedID = id; activeFolderID = paper.folderID; revisions[id] = snapshot.revision; blocked.remove(id)
+            selectedID = id; activeFolderID = paper.folderID; revisions[id] = snapshot.revision
+            if store.hasSharedNote { blocked.removeAll() } else { blocked.remove(id) }
             if keepSharedEditor { markdown = try await editor.rebindSharedDocument(id) }
             else { try await editor.setDocument(id: id, markdown: markdown) }
             if keepSharedEditor { await synchronizeEditor(); await flush() }
@@ -157,6 +140,29 @@ import PaperCore
         guard token == selectionToken else { return }
         reader.onStateChange = { [weak self] page, scale in self?.remember(page: page, scale: scale) }
         isOpening = false
+    }
+    private func loadNote(_ id: UUID) async throws -> (NoteSnapshot, String) {
+        let recovered = try await store.recoverCloudNoteVersions(id)
+        if !recovered.isEmpty { error = L("iCloud 冲突版本已保留为独立副本，可在笔记所在文件夹查看。") }
+        let snapshot = try await store.readNote(id)
+        var markdown = snapshot.markdown
+        try await draftTasks[id]?.value
+        if let draft = try await drafts.read(store.noteIdentity(id)) {
+            if draft.markdown == snapshot.markdown { try await drafts.clear(store.noteIdentity(id), matching: draft.markdown) }
+            else if draft.baseRevision == snapshot.revision { markdown = draft.markdown }
+            else {
+                let recovery = try await drafts.archive(store.noteIdentity(id), draft: draft, current: snapshot.markdown)
+                let alert = NSAlert(); alert.messageText = L("发现未保存的本机草稿")
+                alert.informativeText = L("文件版本与本机草稿不同。两份内容已分别备份，可选择要继续编辑的版本。")
+                alert.addButton(withTitle: L("恢复本机草稿")); alert.addButton(withTitle: L("使用文件版本"))
+                alert.addButton(withTitle: L("查看备份"))
+                let result = alert.runModal()
+                if result == .alertFirstButtonReturn { markdown = draft.markdown }
+                else if result == .alertThirdButtonReturn { NSWorkspace.shared.open(recovery) }
+                try await drafts.clear(store.noteIdentity(id), matching: draft.markdown)
+            }
+        }
+        return (snapshot, markdown)
     }
     @discardableResult
     func importPDFs(_ urls: [URL], into folderID: UUID? = nil) async -> [Paper] {
@@ -408,12 +414,14 @@ import PaperCore
     func openSharedNote() async {
         guard store.hasSharedNote else { return }
         await save()
-        guard canLeaveWorkspace else { return }
+        guard pending.isEmpty else { return }
         do {
             let id = activeNoteID ?? store.sharedNoteID
-            let snapshot = try await store.readNote(id)
+            let (snapshot, markdown) = try await loadNote(id)
             revisions[id] = snapshot.revision
-            try await editor.setDocument(id: id, markdown: snapshot.markdown)
+            blocked.removeAll()
+            try await editor.setDocument(id: id, markdown: markdown)
+            if markdown != snapshot.markdown { noteChanged(id, markdown: markdown); await flush() }
             showNotes = true
             commands.hasNote = true
         } catch { self.error = error.localizedDescription }

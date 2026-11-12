@@ -84,8 +84,19 @@ public enum PDFFileAnnotations {
                 page.addAnnotation(annotation)
             }
             guard let result = document.dataRepresentation(), let verified = PDFDocument(data: result),
-                  verified.pageCount == document.pageCount,
-                  try records(in: verified) == desired.sorted(by: { $0.id.uuidString < $1.id.uuidString }) else { throw LibraryError.invalidPDF }
+                  verified.pageCount == document.pageCount else { throw LibraryError.invalidPDF }
+            let actual = try records(in: verified)
+            guard actual == desired.sorted(by: { $0.id.uuidString < $1.id.uuidString }) else {
+                if ProcessInfo.processInfo.environment["PAPER_READER_ANNOTATION_DIAGNOSTICS"] == "1" {
+                    print("Annotation verification expected", desired, "actual", actual)
+                    for page in 0..<verified.pageCount {
+                        for item in verified.page(at: page)?.annotations ?? [] {
+                            print("Roundtrip annotation", item.annotationKeyValues)
+                        }
+                    }
+                }
+                throw LibraryError.invalidPDF
+            }
             return result
         }
     }

@@ -17,6 +17,9 @@ jobs:
       - run: npm test && npm audit --omit=dev
         working-directory: WebEditor
       - run: swift test --scratch-path "$HOME/Library/Caches/PaperReader/Build"
+        env:
+          PDFKIT_LOG_ANNOTATIONS: '1'
+          PAPER_READER_ANNOTATION_DIAGNOSTICS: '1' 
       - run: scripts/build-app.sh release
       - run: python3 scripts/test-release.py
       # Native window/fullscreen tests run on a real Mac with scripts/test.sh.

@@ -1,6 +1,27 @@
-# Distribution validation — 2026-11-11
+# Distribution validation — 2026-11-13
 
-## Current release 0.4.3 / build 8
+
+## Current release 0.4.5 / build 10
+
+Published [v0.4.5 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.5) from source commit `f8b535f`. Downloaded the public 11,063,200-byte DMG again. SHA-256 `2e9c404334751042264b68f0f65ce6e10d068111a0f7972253c41426059ba85c` matches the published checksum and live website metadata. Mounted read-only, verified version/build and the `/Applications` destination link, and passed strict recursive code-signature, stapler and Gatekeeper checks for both the public app and DMG.
+
+Application notarization `2eaa8e00-0f62-4c34-9b10-7f6e6c6ec487` and DMG notarization `5f31ecf6-168b-4a69-8d40-35b8017a505c` were Accepted. Both Gatekeeper assessments identify Notarized Developer ID, team `Q83556V27Y`. The live HTTPS release manifest and appcast match the repository. Sparkle's official verifier accepts the production-signed live appcast. [Source verification 43252922939](https://github.com/CBDT-JWT/paper-reader/actions/runs/43252922939) and [website deployment 43254127404](https://github.com/CBDT-JWT/Home/actions/runs/43254127404) succeeded.
+
+Performed the actual update from installed 0.4.4 through Check for Updates, Install Update and Install and Relaunch. The About dialog displayed 0.4.5 (10). The original 27-paper workspace, selected paper on page 2/8 and saved shared `notes.md` reopened successfully. The top Ask AI button and bottom-left page capsule were present. The installed executable, Info.plist and signature manifest match the public DMG byte-for-byte. Its signature, stapled ticket and Gatekeeper assessment passed after replacement. A copy of the previous installation remains outside the workspace.
+
+This release passes 51 Swift core tests locally and on GitHub's earlier macOS runner, 12 editor tests, six Sparkle signature tests, and 29 real native workspace checks per language. The signed release application also passed those 29 checks per language in isolated disposable folders. Production dependency auditing reported zero vulnerabilities. The preceding 0.4.4 reader run passed 150 foreground checks per language, including full-screen focus and the supplied seven-page paper. Final 0.4.5 changes cover annotation identity compatibility and shared-note draft recovery. Foreground reader geometry was covered by that preceding run.
+
+Earlier PDFKit preserves the custom embedded annotation record while omitting the standard /NM name during serialization. Ownership now follows the namespaced embedded record, retaining canonical and legacy custom-key compatibility. A regression fixture with no /NM verifies reading and undo deletion. The existing third-party annotation, fractional geometry, legacy migration and stale-save rejection tests pass on the CI runner. A read-only local check also reopened both annotations written by 0.4.4 in the existing paper.
+
+The folder workspace now uses one shared root Markdown, lazy root assets and direct standard PDF annotations. Native chrome follows system appearance with a pastel-blue light toolbar, neutral PDF canvas and consistent flat rounded panels. During earlier UI inspection an unintentionally launched development instance overlapped an older installed version and produced duplicate metadata. The active index was repaired to 27 unique PDFs after a full local recovery snapshot. All 108 pre-existing migrated-note archives were retained byte-identically. One paper received its two legacy line annotations and its seven original page-content renderings stayed byte-identical. Recovery material remains local. See [folder document evidence](FOLDER_DOCUMENTS.md).
+
+Actual two-Mac concurrent iCloud editing, Intel, third-party cloud AI inference and local-model inference remain untested. Older macOS has CI coverage for core tests and release packaging. Its full native window interactions remain unverified. Figure and caption detection remains heuristic for unusual layouts.
+
+## Historical release 0.4.4 / build 9
+
+Published from `932b457` with application notarization `c7af5402-2fa7-4cb8-85b2-c3d6a10706e6` and DMG notarization `32f048e1-067f-4fb2-91fb-d3d797365a45`, both Accepted. Its public DMG SHA-256 is `ebc08de5a29a8fe597ba84e55d55a9ca80c8dd267e3b896008cdd698950e96cc`. Local 50 core tests, 12 editor tests, 150 foreground native reader checks and 29 workspace checks per language passed. Older-macOS CI exposed missing annotation identities after PDF serialization. Version 0.4.5 addresses that compatibility failure and supersedes this release.
+
+## Historical release 0.4.3 / build 8
 
 Published [v0.4.3 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.3) from source commit `4584f83`. Downloaded the public 10,908,253-byte DMG again. SHA-256 `d011a09792b63593a7b350324d16f1157c2442dbf319a9ed19a29aae8041137a` matches both the published checksum file and website metadata. Mounted it read-only and verified the application version/build and `/Applications` destination link. Strict recursive code-signature verification, stapler and Gatekeeper checks passed for the public app and DMG.
 

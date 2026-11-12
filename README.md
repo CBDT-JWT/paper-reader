@@ -1,6 +1,6 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.4 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.5 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 

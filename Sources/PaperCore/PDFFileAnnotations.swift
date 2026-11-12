@@ -4,16 +4,22 @@ import AppKit
 
 /// Records live inside standard PDF annotations. Temporary request files are never sidecars.
 public enum PDFFileAnnotations {
-    private static let recordKey = PDFAnnotationKey(rawValue: "PaperReaderRecord")
-    private static let nameKey = PDFAnnotationKey(rawValue: "NM")
+    private static let recordKey = PDFAnnotationKey(rawValue: "/PaperReaderRecord")
+    private static let legacyRecordKey = PDFAnnotationKey(rawValue: "PaperReaderRecord")
+    private static let nameKey = PDFAnnotationKey.name
+    private static let legacyNameKey = PDFAnnotationKey(rawValue: "NM")
+    private static func encodedRecord(_ annotation: PDFAnnotation) -> String? {
+        annotation.value(forAnnotationKey: recordKey) as? String ?? annotation.value(forAnnotationKey: legacyRecordKey) as? String
+    }
     public static func isOwned(_ annotation: PDFAnnotation) -> Bool {
-        (annotation.value(forAnnotationKey: nameKey) as? String)?.hasPrefix("PaperReader-") == true && annotation.value(forAnnotationKey: recordKey) is String
+        let name = annotation.value(forAnnotationKey: nameKey) as? String ?? annotation.value(forAnnotationKey: legacyNameKey) as? String
+        return name?.hasPrefix("PaperReader-") == true && encodedRecord(annotation) != nil
     }
     @MainActor private static func records(in document: PDFDocument) throws -> [PaperAnnotation] {
         var records: [PaperAnnotation] = []
         for index in 0..<document.pageCount {
             for annotation in document.page(at: index)?.annotations ?? [] where isOwned(annotation) {
-                guard let value = annotation.value(forAnnotationKey: recordKey) as? String,
+                guard let value = encodedRecord(annotation),
                       let data = value.data(using: .utf8),
                       var record = try? JSONDecoder().decode(PaperAnnotation.self, from: data) else {
                     throw LibraryError.invalidPDF

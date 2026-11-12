@@ -1,9 +1,9 @@
 {
-  "version": "0.4.4",
+  "version": "0.4.5",
   "status": "stable",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
-  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.4/PaperReader-0.4.4-arm64.dmg",
-  "sha256": "ebc08de5a29a8fe597ba84e55d55a9ca80c8dd267e3b896008cdd698950e96cc",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.5/PaperReader-0.4.5-arm64.dmg",
+  "sha256": "2e9c404334751042264b68f0f65ce6e10d068111a0f7972253c41426059ba85c",
   "notarized": true
 }

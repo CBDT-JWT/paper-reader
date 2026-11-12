@@ -27,9 +27,6 @@ struct WorkspaceView: View {
                     Button { model.commands.run(.open) } label: { Image(systemName: "plus").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("导入 PDF"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
-                    RegisteredCommandButton(registry: model.commands, id: .askAI)
-                        .labelStyle(.titleAndIcon).font(Design.body).foregroundStyle(WorkspacePalette.accent).fixedSize()
-                        .accessibilityIdentifier("toolbar.askAI")
                     Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                     label: { Image(systemName: "square.and.arrow.up").foregroundStyle(WorkspacePalette.accent) }.menuIndicator(.hidden).help(L("笔记与文件"))
                     Button { model.commands.run(.notes) } label: { Image(systemName: "sidebar.right").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("笔记"))
@@ -175,10 +172,12 @@ private struct ReaderPane: View {
             FocusToggleButton(focus: reader.focus, registry: model.commands)
             Button { showTools.toggle() } label: { Image(systemName: "pencil.and.outline") }.buttonStyle(WorkspaceIconStyle()).help(L("阅读工具"))
                 .popover(isPresented: $showTools) { ReadingToolsPanel(annotations: reader.annotations, focus: reader.focus, model: model) }
+                .accessibilityIdentifier("reader.tools")
+            tool(.askAI).accessibilityLabel(CommandID.askAI.title).accessibilityIdentifier("reader.askAI")
             if compact {
                 Menu {
                     Button(L("搜索原文")) { showSearch.toggle() }
-                    ForEach([CommandID.previousPage, .nextPage, .quote, .zoomIn, .zoomOut, .fit, .outline, .metadata, .askAI]) { RegisteredCommandButton(registry: model.commands, id: $0) }
+                    ForEach([CommandID.previousPage, .nextPage, .quote, .zoomIn, .zoomOut, .fit, .outline, .metadata]) { RegisteredCommandButton(registry: model.commands, id: $0) }
                 }
                 label: { Image(systemName: "ellipsis").frame(width: 30, height: 30) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             }

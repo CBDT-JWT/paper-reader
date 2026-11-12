@@ -106,9 +106,9 @@ struct PaperReaderApp: App {
             let workspace = selected
             if !ProcessInfo.processInfo.arguments.contains("--self-test") {
                 let otherVersion = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "dev.paperreader.mac").contains {
-                    $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && $0.bundleURL != Bundle.main.bundleURL
+                    $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
                 }
-                guard !otherVersion else { throw LibraryError.workspaceInUse }
+                guard !otherVersion || ProcessInfo.processInfo.environment["PAPER_READER_LIBRARY"] != nil else { throw LibraryError.workspaceInUse }
                 let index = workspace.map { WorkspaceLocation.indexURL(for: $0.folder) } ?? root.appendingPathComponent("library.sqlite")
                 workspaceAccess = try await Task.detached { try WorkspaceAccess(indexURL: index) }.value
             }

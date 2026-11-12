@@ -1,7 +1,22 @@
 # Distribution validation — 2026-11-13
 
 
-## Current release 0.4.5 / build 10
+
+## Current release 0.4.6 / build 11
+
+Published [v0.4.6 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.6) from source `69be249`. The final Ask AI control is an icon-only button directly beside the reading tools in the PDF toolbar, with a localized name and configured shortcut in its tooltip. This placement follows the user's final instruction. The reader retains the light pastel-blue native top chrome, neutral PDF canvas and bottom-left page capsule.
+
+Downloaded the public 11,068,088-byte DMG. SHA-256 `518bcea1ae7b9c99cff09aa8d1ef5e5710a178ca56960a36a9abc5e925767dbc` matches the published checksum and live HTTPS release manifest. Read-only mounting verified version 0.4.6 (11) and the Applications link. Strict recursive code-signature, stapler and Gatekeeper checks passed for the downloaded app and DMG. Application notarization `f56d1b7d-06ac-48d8-89cd-3b38e73e975d` and DMG notarization `0a2c797a-e00c-475c-a7f5-6c3796b0cc02` were Accepted. The live signed feed verifies with Sparkle's official verifier and exactly matches the repository feed.
+
+Completed the actual Sparkle update from installed 0.4.5 to 0.4.6. The About dialog showed 0.4.6 (11). The 27-paper workspace reopened on the selected paper at 2/8 with the shared note saved. Native accessibility shows `reader.askAI` immediately after `reader.tools`, with help text containing the configured shortcut. Clicking the icon opened the AI composer with provider/model controls, and Escape closed it. No question or private paper was sent. The installed executable, Info.plist and signature manifest match the public app byte-for-byte. Its strict signature, ticket and Gatekeeper checks passed after update.
+
+Source verification [43256198317](https://github.com/CBDT-JWT/paper-reader/actions/runs/43256198317) and website deployment [43257401619](https://github.com/CBDT-JWT/Home/actions/runs/43257401619) succeeded. Final coverage includes 53 Swift core tests, 12 editor tests, six signature tests and 30 native workspace checks in each language. The signed release build also passed those 30 checks per language. Reader/full-screen regression coverage remains the 150-per-language 0.4.4 run documented below.
+
+Page-only AI note citations now carry their originating paper and portable filename. New approved note proposals normalize these citations before preview. Legacy per-paper notes receive the same conversion during merging. Previously merged sections bearing application migration markers receive a one-time coordinated repair and a complete local pre-repair recovery copy. The actual workspace's two legacy page links were repaired, with surrounding Markdown byte-identical after excluding source URLs. Unmarked old page links retain their text because the originating paper cannot be established automatically. Core tests cover both the conversion and this preservation behavior, and the native reader test verifies switching papers to the cited page.
+
+The earlier duplicate-index incident and its repair are recorded below and in [folder document evidence](FOLDER_DOCUMENTS.md). Its recovery snapshot remains on the local Mac. Actual two-Mac concurrent iCloud editing, Intel, third-party cloud AI inference and local-model inference remain untested. Earlier macOS has core/build CI coverage, while its full native window interactions remain unverified.
+
+## Historical release 0.4.5 / build 10
 
 Published [v0.4.5 on GitHub](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.5) from source commit `f8b535f`. Downloaded the public 11,063,200-byte DMG again. SHA-256 `2e9c404334751042264b68f0f65ce6e10d068111a0f7972253c41426059ba85c` matches the published checksum and live website metadata. Mounted read-only, verified version/build and the `/Applications` destination link, and passed strict recursive code-signature, stapler and Gatekeeper checks for both the public app and DMG.
 

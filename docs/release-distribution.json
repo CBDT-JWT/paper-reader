@@ -1,27 +1,27 @@
 {
-  "version": "0.4.5",
+  "version": "0.4.6",
   "status": "stable",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
-  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.5/PaperReader-0.4.5-arm64.dmg",
-  "sha256": "2e9c404334751042264b68f0f65ce6e10d068111a0f7972253c41426059ba85c",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.6/PaperReader-0.4.6-arm64.dmg",
+  "sha256": "518bcea1ae7b9c99cff09aa8d1ef5e5710a178ca56960a36a9abc5e925767dbc",
   "notarized": true,
-  "build": "10",
-  "size": 11063200,
+  "build": "11",
+  "size": 11068088,
   "teamID": "Q83556V27Y",
   "applicationNotarization": {
-    "id": "2eaa8e00-0f62-4c34-9b10-7f6e6c6ec487",
+    "id": "f56d1b7d-06ac-48d8-89cd-3b38e73e975d",
     "status": "Accepted"
   },
   "dmgNotarization": {
-    "id": "5f31ecf6-168b-4a69-8d40-35b8017a505c",
+    "id": "0a2c797a-e00c-475c-a7f5-6c3796b0cc02",
     "status": "Accepted"
   },
   "publicDownloadVerified": true,
   "appAndDMGStaplerValidated": true,
   "gatekeeperApp": "Notarized Developer ID",
   "gatekeeperDMG": "Notarized Developer ID",
-  "swiftTests": 51,
+  "swiftTests": 53,
   "editorTests": 12,
   "nativeSourceChecks": {
     "en": 150,
@@ -32,27 +32,29 @@
     "zh-Hans": 21
   },
   "workspaceSourceChecks": {
-    "en": 29,
-    "zh-Hans": 29,
+    "en": 30,
+    "zh-Hans": 30,
     "realICloudFolderUsed": false
   },
   "interactiveFocusChecksSkipped": 0,
   "liveSignedFeedVerified": true,
   "automaticInstallRelaunchValidated": true,
-  "automaticUpdateSourceVersion": "0.4.4",
-  "automaticUpdateSourceBuild": "9",
+  "automaticUpdateSourceVersion": "0.4.5",
+  "automaticUpdateSourceBuild": "10",
   "installedPublicArtifactVersionVerified": true,
   "installedPublicArtifactSignatureVerified": true,
   "liveWebsiteMetadataVerified": true,
-  "githubVerificationRun": 43252922939,
-  "websiteDeploymentRun": 43254127404,
+  "githubVerificationRun": 43256198317,
+  "websiteDeploymentRun": 43257401619,
   "actualLocalModelInferenceValidated": false,
   "workspaceSignedReleaseChecks": {
-    "en": 29,
-    "zh-Hans": 29
+    "en": 30,
+    "zh-Hans": 30
   },
   "nativeReaderRegressionSourceVersion": "0.4.4",
   "nativeAIRecheckSourceVersion": "0.4.3",
   "earlierMacOSCoreAndPackagingCIPassed": true,
-  "twoMacConcurrentICloudRuntimeValidated": false
+  "twoMacConcurrentICloudRuntimeValidated": false,
+  "iconOnlyAIActionBesideReadingToolsVerified": true,
+  "legacyPageCitationRepairVerified": true
 }

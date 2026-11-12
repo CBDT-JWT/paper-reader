@@ -1,4 +1,4 @@
-:root {color-scheme: light dark; --ink: #292d34; --muted: #666c78; --surface: #fffdfa; --code: #edf1f8; --accent: #315fad; --border: #d7dfec; font-family: -apple-system, BlinkMacSystemFont, sans-serif;}
+:root {color-scheme: light dark; --ink: #292d34; --muted: #666c78; --surface: #ffffff; --code: #edf1f8; --accent: #315fad; --border: #d7dfec; font-family: -apple-system, BlinkMacSystemFont, sans-serif;}
 @media (prefers-color-scheme: dark) {:root {--ink: #e8e9ed; --muted: #a8b1c1; --surface: #20242b; --code: #293448; --accent: #91b7f5; --border: #41516b;}}
 * {box-sizing: border-box;}
 body {margin: 0; background: var(--surface); color: var(--ink);}

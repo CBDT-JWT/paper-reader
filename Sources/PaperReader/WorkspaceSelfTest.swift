@@ -130,7 +130,7 @@ import PaperCore
             try check(linked.reader.view.window?.titlebarSeparatorStyle == NSTitlebarSeparatorStyle.none, "Native titlebar has no decorative separator")
             let appearance = linked.editor.webView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
             let noteBackground = try await linked.editor.webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor") as? String
-            try check(noteBackground == (appearance == .darkAqua ? "rgb(32, 36, 43)" : "rgb(255, 253, 250)"), "Offline editor colors follow the actual native light or dark appearance")
+            try check(noteBackground == (appearance == .darkAqua ? "rgb(32, 36, 43)" : "rgb(255, 255, 255)"), "Offline editor colors follow the actual native light or dark appearance")
             await bootstrap.useLocalLibrary()
             guard let local = bootstrap.model else { throw Failure(message: "Local workspace missing") }
             try await wait { local.editor.ready && local.selectedID == id }

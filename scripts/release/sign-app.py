@@ -1,6 +1,6 @@
 """Sign nested code inside-out. Never use --deep to sign a release."""
 from pathlib import Path
-import os, subprocess, sys
+import os, subprocess, sys, time
 app=Path(sys.argv[1]);identity=os.environ.get('PAPER_READER_SIGN_IDENTITY','-')
 release=identity!='-'
 if release and not identity.startswith('Developer ID Application:'):
@@ -9,7 +9,16 @@ def sign(path,preserve=False):
  args=['codesign','--force','--sign',identity]
  if release: args+=['--options','runtime','--timestamp']
  if preserve:args+=['--preserve-metadata=entitlements']
- subprocess.run(args+[str(path)],check=True)
+ for attempt in range(3):
+  result = subprocess.run(args + [str(path)], capture_output=True, text=True)
+  sys.stdout.write(result.stdout)
+  sys.stderr.write(result.stderr)
+  if result.returncode == 0:
+   return
+  transient = 'timestamp' in result.stderr.lower()
+  if not transient or attempt == 2:
+   raise subprocess.CalledProcessError(result.returncode, result.args)
+  time.sleep(2 * (attempt + 1))
 if release:
  # Framework helper executables may have no bundle wrapper. Preserve their sandbox entitlements.
  for p in sorted(app.rglob('*'),key=lambda x:len(x.parts),reverse=True):

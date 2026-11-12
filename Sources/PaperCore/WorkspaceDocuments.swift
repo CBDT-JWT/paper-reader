@@ -145,16 +145,26 @@ extension LibraryStore {
 
     private func consolidateSourceRecords() throws {
         let records = try papers().sorted { $0.importedAt < $1.importedAt }
-        var seen: Set<String> = []
+        var canonicalByPath: [String: UUID] = [:]
         for paper in records {
             guard let path = paper.sourceRelativePath else { continue }
-            guard seen.insert(path).inserted else {
+            if let canonical = canonicalByPath[path] {
+                let duplicateAnnotations = directory(paper.id).appendingPathComponent("annotations.json")
+                if let data = try CoordinatedFiles.readOptional(duplicateAnnotations) {
+                    let incoming = try JSONDecoder().decode([PaperAnnotation].self, from: data)
+                    let destination = directory(canonical).appendingPathComponent("annotations.json")
+                    try CoordinatedFiles.update(destination) { current in
+                        var combined = try current.map { try JSONDecoder().decode([PaperAnnotation].self, from: $0) } ?? []
+                        let known = Set(combined.map(\.id))
+                        combined += incoming.filter { !known.contains($0.id) }
+                        return try JSONEncoder().encode(combined)
+                    }
+                }
                 let recovery = root.appendingPathComponent("Recovered Legacy Records", isDirectory: true)
                 try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true)
                 try CoordinatedFiles.move(directory(paper.id), to: recovery.appendingPathComponent(paper.id.uuidString))
                 try unindex(paper.id)
-                continue
-            }
+            } else { canonicalByPath[path] = paper.id }
         }
     }
 

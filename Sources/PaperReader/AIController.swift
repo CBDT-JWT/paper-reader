@@ -245,7 +245,7 @@ struct NoteProposal: Identifiable {
         case "proposeNoteEdit", "insertNoteBlock":
             guard let app, app.selectedID == id else { throw CancellationError() }
             let before = try await app.editor.call("getMarkdown") as? String ?? note
-            let value = call.arguments["markdown"].string ?? ""
+            let value = try await store.anchoringPageLinks(call.arguments["markdown"].string ?? "", to: id)
             guard !value.isEmpty else { throw AIError.message(L("笔记修改内容不能为空。")) }
             let after = call.name == "insertNoteBlock" ? before + "\n\n" + value : value
             try await app.editor.validate(after)

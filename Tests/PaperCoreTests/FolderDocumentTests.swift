@@ -252,6 +252,49 @@ final class FolderDocumentTests: XCTestCase, @unchecked Sendable {
             XCTAssertEqual(PDFDocument(url: pdf)?.page(at: 0)?.annotations.count, 0)
         }
     }
+    func testSharedNotePageLinksCarryPaperIdentityAndPageOnlyLocation() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        try DemoPaper.create(at: root.appendingPathComponent("paper (one).pdf"))
+        let library = try store(root)
+        let papers = try await library.scanWorkspace()
+        let paper = try XCTUnwrap(papers.first)
+        let anchored = try await library.anchoringPageLinks("[p.2](paperreader://page/2)", to: paper.id)
+        XCTAssertFalse(anchored.contains("paperreader://page/"))
+        let raw = String(anchored.dropFirst(6).dropLast())
+        let link = try XCTUnwrap(URLComponents(string: raw))
+        let query = try XCTUnwrap(link.queryItems)
+        XCTAssertEqual(query.first { $0.name == "paper" }?.value, paper.id.uuidString)
+        XCTAssertEqual(query.first { $0.name == "file" }?.value, "paper (one).pdf")
+        XCTAssertEqual(query.first { $0.name == "page" }?.value, "1")
+        XCTAssertNil(query.first { $0.name == "x" })
+        XCTAssertTrue(raw.contains("%28one%29"))
+        await library.close()
+    }
+    func testAlreadyMergedLegacyPageLinksRecoverTheirOriginOnce() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        for name in ["one.pdf", "two.pdf"] { try DemoPaper.create(at: root.appendingPathComponent(name)) }
+        let library = try store(root)
+        let papers = try await library.scanWorkspace()
+        var note = "# Existing note\n\n[p.9](paperreader://page/9)\n"
+        for paper in papers {
+            let marker = await library.sourceLink(.init(paperID: paper.id, page: 0, rect: .init(x: 0, y: 0, width: 1, height: 1)))
+            note += "\n## " + paper.title + "\n\n[PDF](" + marker + "&note=" + paper.id.uuidString + ")\n\n[p.2](paperreader://page/2)\n"
+        }
+        let noteURL = library.noteURL(library.sharedNoteID)
+        try Data(note.utf8).write(to: noteURL)
+        try FileManager.default.removeItem(at: library.deviceDirectory.appendingPathComponent("page-links-v1.json"))
+        _ = try await library.scanWorkspace()
+        let restored = try String(contentsOf: noteURL, encoding: .utf8)
+        XCTAssertTrue(restored.contains("[p.9](paperreader://page/9)"))
+        XCTAssertFalse(restored.contains("[p.2](paperreader://page/2)"))
+        for paper in papers {
+            XCTAssertTrue(restored.contains("paper=" + paper.id.uuidString + "&page=1"))
+        }
+        XCTAssertEqual(try String(contentsOf: library.deviceDirectory.appendingPathComponent("legacy-page-links.previous.md"), encoding: .utf8), note)
+        _ = try await library.scanWorkspace()
+        XCTAssertEqual(try String(contentsOf: noteURL, encoding: .utf8), restored)
+        await library.close()
+    }
     func testConcurrentPDFEditsRejectStaleWritesWithoutLosingExternalWork() async throws {
         let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
         try DemoPaper.create(at: root.appendingPathComponent("paper.pdf"))

@@ -81,6 +81,7 @@ extension LibraryStore {
             try migratePaperNote(paper)
         }
         try consolidateSourceRecords()
+        try repairLegacyPageLinks()
     }
 
     private func migrateLegacyWorkspace() throws {
@@ -119,6 +120,7 @@ extension LibraryStore {
         }
         markdown = markdown.replacingOccurrences(of: "](assets/", with: "](" + prefix)
             .replacingOccurrences(of: "](<assets/", with: "](<" + prefix)
+        markdown = try anchoringPageLinks(markdown, to: paper.id)
         let references = try sourcesForPaper(paper.id)
         var updated: [SourceReference] = []
         for reference in references {
@@ -178,6 +180,67 @@ extension LibraryStore {
         link.percentEncodedQuery = link.percentEncodedQuery?.replacingOccurrences(of: "(", with: "%28").replacingOccurrences(of: ")", with: "%29")
         return link.string ?? reference.link
     }
+    /// Page-only AI citations need the originating paper once notes are shared.
+    public func anchoringPageLinks(_ markdown: String, to paperID: UUID) throws -> String {
+        guard hasSharedNote else { return markdown }
+        let reference = SourceReference(paperID: paperID, page: 0, rect: .init(x: 0, y: 0, width: 1, height: 1))
+        guard let base = URLComponents(string: sourceLink(reference)), base.host == "document" else { return markdown }
+        return try Self.anchoringPageLinks(markdown, base: base)
+    }
+
+    private static func anchoringPageLinks(_ markdown: String, base: URLComponents) throws -> String {
+        let expression = try NSRegularExpression(pattern: #"(?<=\]\()paperreader://page/([1-9][0-9]*)(?=\))"#)
+        var text = markdown
+        let matches = expression.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        for match in matches.reversed() {
+            guard let range = Range(match.range, in: text), let numberRange = Range(match.range(at: 1), in: text),
+                  let number = Int(text[numberRange]) else { continue }
+            var link = base
+            var items = (link.queryItems ?? []).filter { !["page", "x", "y", "w", "h", "note"].contains($0.name) }
+            items.append(URLQueryItem(name: "page", value: String(number - 1)))
+            link.queryItems = items
+            link.percentEncodedQuery = link.percentEncodedQuery?.replacingOccurrences(of: "(", with: "%28").replacingOccurrences(of: ")", with: "%29")
+            if let replacement = link.string { text.replaceSubrange(range, with: replacement) }
+        }
+        return text
+    }
+
+    private func repairLegacyPageLinks() throws {
+        let completed = deviceDirectory.appendingPathComponent("page-links-v1.json")
+        guard !FileManager.default.fileExists(atPath: completed.path),
+              let initial = try CoordinatedFiles.readOptional(noteURL(sharedNoteID)) else { return }
+        if initial.range(of: Data("paperreader://page/".utf8)) != nil {
+            let markers = try NSRegularExpression(pattern: #"(?m)^\[PDF\]\((paperreader://document\?[^)\r\n]+)\)$"#)
+            try CoordinatedFiles.update(noteURL(sharedNoteID)) { bytes in
+                guard let bytes, var text = String(data: bytes, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+                let matches = markers.matches(in: text, range: NSRange(text.startIndex..., in: text))
+                for index in matches.indices.reversed() {
+                    let match = matches[index]
+                    guard let markerRange = Range(match.range(at: 1), in: text),
+                          let base = URLComponents(string: String(text[markerRange])),
+                          let items = base.queryItems,
+                          let paper = items.first(where: { $0.name == "paper" })?.value,
+                          UUID(uuidString: paper) != nil,
+                          items.first(where: { $0.name == "note" })?.value == paper,
+                          let path = items.first(where: { $0.name == "file" })?.value else { continue }
+                    _ = try Self.containedURL(path, in: documentsRoot!)
+                    let start = match.range.location + match.range.length
+                    let end = index + 1 < matches.count ? matches[index + 1].range.location : (text as NSString).length
+                    guard let range = Range(NSRange(location: start, length: end - start), in: text) else { continue }
+                    let anchored = try Self.anchoringPageLinks(String(text[range]), base: base)
+                    text.replaceSubrange(range, with: anchored)
+                }
+                let updated = Data(text.utf8)
+                if updated != bytes {
+                    let recovery = deviceDirectory.appendingPathComponent("legacy-page-links.previous.md")
+                    if !FileManager.default.fileExists(atPath: recovery.path) { try CoordinatedFiles.write(bytes, to: recovery) }
+                }
+                return updated
+            }
+        }
+        try CoordinatedFiles.write(Data("true".utf8), to: completed)
+    }
+
     func sourcesForPaper(_ id: UUID) throws -> [SourceReference] {
         guard let data = try CoordinatedFiles.readOptional(directory(id).appendingPathComponent("sources.json")) else { return [] }
         return try JSONDecoder().decode([SourceReference].self, from: data)

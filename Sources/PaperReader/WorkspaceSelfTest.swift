@@ -111,6 +111,12 @@ import PaperCore
             await linked.select(selected)
             await linked.openLink(sourceURL)
             try check(linked.selectedID == secondPaper.id, "Shared-note source links switch back to their original PDF")
+            let pageCitation = try await linked.store.anchoringPageLinks("[p.2](paperreader://page/2)", to: secondPaper.id)
+            let pageURL = URL(string: String(pageCitation.dropFirst(6).dropLast()))!
+            await linked.select(selected)
+            await linked.openLink(pageURL)
+            try await wait { linked.selectedID == secondPaper.id && linked.reader.page == 1 }
+            checks.append("Page-only AI citations switch to the originating paper and requested page")
             let annotation = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 80, y: 200, width: 90, height: 60))
             linked.reader.annotations.add([annotation]); await linked.reader.annotations.flush()
             let actual = try await linked.store.annotations(secondPaper.id)

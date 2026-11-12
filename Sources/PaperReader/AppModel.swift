@@ -395,7 +395,8 @@ import PaperCore
                 let rect = PDFRect(x: value("x").flatMap(Double.init) ?? 0, y: value("y").flatMap(Double.init) ?? 0,
                                    width: value("w").flatMap(Double.init) ?? 1, height: value("h").flatMap(Double.init) ?? 1)
                 guard [rect.x, rect.y, rect.width, rect.height].allSatisfy(\.isFinite) else { throw LibraryError.invalidPath }
-                reader.reveal(SourceReference(paperID: paper.id, page: page, rect: rect))
+                if value("x") == nil { reader.goToPage(page) }
+                else { reader.reveal(SourceReference(paperID: paper.id, page: page, rect: rect)) }
             } catch { self.error = error.localizedDescription }
         } else if url.scheme == "paperreader", let id = selectedID, ["source", "asset"].contains(url.host ?? "") {
             let sourceID = UUID(uuidString: url.lastPathComponent)

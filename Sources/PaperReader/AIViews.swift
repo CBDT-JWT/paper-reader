@@ -30,20 +30,33 @@ struct AIComposer: View {
                     Text(ai.status.isEmpty ? L("正在回答…") : ai.status).font(Design.small).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
-            HStack(alignment: .bottom, spacing: 8) {
-                ChatInput(text: $ai.draft, submit: { ai.send() }, dismiss: { if compact { ai.visible = false } else { ai.expanded = false } })
-                    .frame(height: compact ? 52 : 76)
-                if ai.generating { Button { ai.cancel() } label: { Image(systemName: "stop.circle.fill") }.buttonStyle(WorkspaceIconStyle()).help(L("停止生成")) }
-                else { Button { ai.send() } label: { Image(systemName: "arrow.up.circle.fill").foregroundStyle(WorkspacePalette.accent) }
-                    .buttonStyle(WorkspaceIconStyle()).disabled(ai.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .help(L("发送问题")).accessibilityIdentifier("ai.send") }
+            if let quote = ai.pendingQuote {
+                HStack(alignment: .top, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 1).fill(WorkspacePalette.accent).frame(width: 2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(quote.label).font(Design.small).foregroundStyle(WorkspacePalette.accent)
+                        Text(quote.text).font(Design.body).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Button { ai.pendingQuote = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(WorkspaceIconStyle()).help(L("移除引用")).accessibilityIdentifier("ai.quote.remove")
+                }.fixedSize(horizontal: false, vertical: true).padding(10)
+                    .background(WorkspacePalette.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: Design.radius))
+                    .accessibilityIdentifier("ai.quote")
             }
-            HStack {
-                Label(L("论文与笔记"), systemImage: "doc.text").lineLimit(1)
-                Spacer()
-                Text(L("Enter 发送 · Shift+Enter 换行"))
-            }.font(Design.small).foregroundStyle(.tertiary)
-        }.padding(14).background(WorkspacePalette.chrome, in: RoundedRectangle(cornerRadius: compact ? 20 : Design.radius))
+            HStack(alignment: .bottom, spacing: 4) {
+                ChatInput(text: $ai.draft, quoteID: ai.pendingQuote?.id, submit: { ai.send() }, dismiss: { if compact { ai.visible = false } else { ai.expanded = false } })
+                    .frame(height: compact ? 70 : 92)
+                if ai.generating { Button { ai.cancel() } label: { Image(systemName: "stop.circle.fill") }.buttonStyle(WorkspaceIconStyle()).help(L("停止生成")) }
+                else { Button { ai.send() } label: {
+                    Image(systemName: "arrow.up").font(Design.body).foregroundStyle(.white).frame(width: 30, height: 30)
+                        .background(WorkspacePalette.accent, in: RoundedRectangle(cornerRadius: Design.radius))
+                }.buttonStyle(.plain).disabled(ai.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help(L("发送问题")).accessibilityIdentifier("ai.send") }
+            }.padding(.trailing, 8).padding(.bottom, 8)
+                .background(WorkspacePalette.accent.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
+                .overlay(RoundedRectangle(cornerRadius: Design.radius).strokeBorder(WorkspacePalette.accent.opacity(0.25), lineWidth: 1))
+            if compact { AIInputHint().frame(height: 20) }
+        }.padding(12).background(WorkspacePalette.chrome, in: RoundedRectangle(cornerRadius: compact ? 20 : Design.radius))
             .frame(maxWidth: compact ? 600 : .infinity)
     }
 }
@@ -57,11 +70,13 @@ struct AIConversationView: View {
                 Spacer(minLength: 0)
                 Button { ai.expanded = false } label: { Image(systemName: "xmark") }
                     .buttonStyle(WorkspaceIconStyle()).help(L("收起对话")).accessibilityIdentifier("ai.close")
-            }.padding(.horizontal, 16).frame(height: 50)
+            }.padding(.horizontal, 16).frame(height: Design.paneHeaderHeight)
             AIConnectionControls(settings: ai.settings, generating: ai.generating).padding(.horizontal, 16).padding(.bottom, 8)
             ZStack {
                 AITranscriptView(messages: ai.messages, generating: ai.generating,
-                                 onLink: { url in Task { await ai.app?.openLink(url) } }, onError: { renderingError = $0 })
+                                 onLink: { url in Task { await ai.app?.openLink(url) } }, onError: { renderingError = $0 },
+                                 onSelection: { text, id, excerpt in ai.selectReply(text, messageID: id, excerpt: excerpt) },
+                                 revealMessageID: ai.revealMessageID, revealRequest: ai.revealRequest)
                 if ai.messages.isEmpty {
                     VStack(alignment: .leading, spacing: 14) {
                         Text(L("从这篇论文开始")).font(Design.title)
@@ -81,7 +96,8 @@ struct AIConversationView: View {
             }
             if let renderingError { Text(renderingError).font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 14) }
             if ai.error != nil { AIErrorBanner(ai: ai).padding(.horizontal, 12).padding(.top, 8) }
-            AIComposer(ai: ai, compact: false).padding(12)
+            AIComposer(ai: ai, compact: false).padding(.horizontal, 4).padding(.top, 8)
+            AIInputHint().padding(.horizontal, 18).frame(height: Design.footerHeight)
         }.font(Design.body).background(WorkspacePalette.paper).frame(minWidth: 300)
     }
     private func diffColumn(_ text: String, comparedTo other: String, before: Bool) -> some View {
@@ -94,6 +110,14 @@ struct AIConversationView: View {
                 ForEach(lines.indices, id: \.self) { index in Text(lines[index].isEmpty ? " " : lines[index]).font(.system(size: 12, design: .monospaced)).padding(.vertical, 2).frame(maxWidth: .infinity, alignment: .leading).background(changed.contains(index) ? (before ? Color.red : Color.green).opacity(0.12) : .clear) }
             } }.frame(maxWidth: .infinity)
         }
+    }
+}
+private struct AIInputHint: View {
+    var body: some View {
+        HStack {
+            Text(L("Enter 发送 · Shift+Enter 换行")).lineLimit(1).accessibilityIdentifier("ai.hint")
+            Spacer(minLength: 0)
+        }.font(Design.small).foregroundStyle(.secondary)
     }
 }
 struct AISettingsView: View {
@@ -118,36 +142,6 @@ struct AISettingsView: View {
             Text(L("联网检索使用 Crossref 的真实出版物信息。笔记修改始终需要差异确认。API Key 仅保存在 macOS Keychain。")).font(.system(size: 12)).foregroundStyle(.secondary)
             HStack { if settings.refreshing { ProgressView().controlSize(.small) }; Text(settings.status).font(Design.small).foregroundStyle(settings.statusIsError ? Color.red : Color.secondary); Spacer(); Button(L("保存设置")) { settings.save() }.buttonStyle(.borderedProminent) }
         }.textFieldStyle(.roundedBorder).font(.system(size: 14)).padding(24).frame(width: 760, height: 460)
-    }
-}
-private struct ChatInput: NSViewRepresentable {
-    @Binding var text: String
-    var submit: () -> Void
-    var dismiss: () -> Void
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.drawsBackground = false; scroll.autohidesScrollers = true
-        let view = InputView(); view.isRichText = false; view.font = .systemFont(ofSize: 14); view.drawsBackground = false; view.textContainerInset = NSSize(width: 3, height: 7); view.isVerticallyResizable = true; view.autoresizingMask = [.width]; view.textContainer?.widthTracksTextView = true
-        view.delegate = context.coordinator; view.submit = submit; view.dismiss = dismiss; scroll.documentView = view
-        view.setAccessibilityLabel(L("询问论文或当前选区…")); view.setAccessibilityIdentifier("ai.input")
-        DispatchQueue.main.async { view.window?.makeFirstResponder(view) }; return scroll
-    }
-    func updateNSView(_ scroll: NSScrollView, context: Context) { guard let view = scroll.documentView as? InputView else { return }; if view.string != text { view.string = text }; view.submit = submit; view.dismiss = dismiss; context.coordinator.parent = self }
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
-    @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
-        var parent: ChatInput; init(parent: ChatInput) { self.parent = parent }
-        func textDidChange(_ notification: Notification) { if let view = notification.object as? NSTextView { parent.text = view.string } }
-    }
-    @MainActor final class InputView: NSTextView {
-        var submit: (() -> Void)?; var dismiss: (() -> Void)?
-        override func draw(_ dirtyRect: NSRect) {
-            super.draw(dirtyRect)
-            if string.isEmpty { (L("询问论文或当前选区…") as NSString).draw(at: NSPoint(x: 4, y: 7), withAttributes: [.font: NSFont.systemFont(ofSize: 14), .foregroundColor: NSColor.placeholderTextColor]) }
-        }
-        override func didChangeText() { super.didChangeText(); needsDisplay = true }
-        override func keyDown(with event: NSEvent) {
-            if event.keyCode == 36, !event.modifierFlags.contains(.shift) { submit?(); return }
-            if event.keyCode == 53 { dismiss?(); return }; super.keyDown(with: event)
-        }
     }
 }
 

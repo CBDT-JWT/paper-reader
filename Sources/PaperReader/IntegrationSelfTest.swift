@@ -264,8 +264,9 @@ import PaperCore
                 model.reader.focus.enabled = false
             }
             let record = PaperAnnotation(page: 0, kind: .rectangle, rect: .init(x: 48, y: 210, width: 516, height: 128))
+            let annotationBaseline = model.reader.annotations.records
             model.reader.annotations.add([record]); model.reader.annotations.undo()
-            try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous PDF annotation state")
+            try check(model.reader.annotations.records.isEmpty, "Native annotation undo restores the previous PDF annotation state (baseline=\(annotationBaseline.count), remaining=\(model.reader.annotations.records.count))")
             model.reader.annotations.redo(); await model.reader.annotations.flush()
             let persistedAnnotations = try await model.store.annotations(firstID)
             try check(persistedAnnotations == [record], "Annotation redo persists standard annotations inside the PDF")
@@ -368,7 +369,7 @@ import PaperCore
         return nil
     }
     @MainActor private final class TransitionState { var completed = false }
-    private static func setFullScreen(_ enabled: Bool, window: NSWindow) async throws {
+    static func setFullScreen(_ enabled: Bool, window: NSWindow) async throws {
         guard window.styleMask.contains(.fullScreen) != enabled else { return }
         let state = TransitionState()
         let name = enabled ? NSWindow.didEnterFullScreenNotification : NSWindow.didExitFullScreenNotification

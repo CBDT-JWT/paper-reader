@@ -32,7 +32,7 @@ struct LibraryTreeView: View {
                 } label: { Image(systemName: "arrow.up.arrow.down").frame(width: 30, height: 30) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 30)
                     .help(L("排序方式")).accessibilityLabel(L("排序方式"))
-            }.padding(.horizontal, 12).padding(.top, 16).padding(.bottom, 14)
+            }.padding(.horizontal, 12).frame(height: Design.paneHeaderHeight)
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField(L("搜索论文"), text: $model.query).textFieldStyle(.plain)

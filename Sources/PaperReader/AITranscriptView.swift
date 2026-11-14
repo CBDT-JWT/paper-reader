@@ -8,6 +8,9 @@ struct AITranscriptView: NSViewRepresentable {
     let generating: Bool
     let onLink: (URL) -> Void
     let onError: (String) -> Void
+    var onSelection: (String, UUID, Bool) -> Void = { _, _, _ in }
+    var revealMessageID: UUID?
+    var revealRequest = 0
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> WKWebView {
@@ -50,7 +53,7 @@ struct AITranscriptView: NSViewRepresentable {
                         guard let parent, let webView else { return }
                         let rendered = revision
                         let messages = try JSONSerialization.jsonObject(with: JSONEncoder().encode(parent.messages))
-                        _ = try await webView.callAsyncJavaScript("return window.conversation.render(payload)", arguments: ["payload": ["messages": messages, "generating": parent.generating]], in: nil, contentWorld: .page)
+                        _ = try await webView.callAsyncJavaScript("return window.conversation.render(payload)", arguments: ["payload": ["messages": messages, "generating": parent.generating, "revealMessageID": parent.revealMessageID?.uuidString ?? "", "revealRequest": parent.revealRequest]], in: nil, contentWorld: .page)
                         if rendered == revision { return }
                     }
                 } catch is CancellationError { }
@@ -66,6 +69,11 @@ struct AITranscriptView: NSViewRepresentable {
             case "copy":
                 guard let raw = body["id"] as? String, let id = UUID(uuidString: raw), let text = parent?.messages.first(where: { $0.id == id })?.content else { return }
                 NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+            case "selection":
+                guard let raw = body["id"] as? String, let id = UUID(uuidString: raw),
+                      let text = body["text"] as? String, let action = body["action"] as? String,
+                      ["ask", "excerpt"].contains(action), parent?.messages.contains(where: { $0.id == id && $0.role == "assistant" }) == true else { return }
+                parent?.onSelection(text, id, action == "excerpt")
             default: break
             }
         }

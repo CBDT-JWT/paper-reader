@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 
 enum Design {
     static let radius: CGFloat = 8
+    static let paneHeaderHeight: CGFloat = 48
+    static let footerHeight: CGFloat = 34
     static let small = Font.system(size: 12)
     static let body = Font.system(size: 14)
     static let title = Font.system(size: 20, weight: .semibold)
@@ -19,8 +21,7 @@ struct WorkspaceView: View {
             .navigationTitle(model.currentPaper?.title ?? model.store.documentsRoot?.lastPathComponent ?? L("阅读工作区"))
             .tint(WorkspacePalette.accent)
             .background(WorkspacePalette.chrome)
-            .toolbarBackground(WorkspacePalette.toolbar, for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
+            .toolbarBackground(.hidden, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button { model.commands.run(.sidebar) } label: { Image(systemName: "sidebar.left").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("文献库"))
@@ -78,6 +79,9 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         controller.splitViewItems[3].isCollapsed = !ai.expanded
         if let window = controller.view.window {
             window.titlebarSeparatorStyle = .none
+            if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
+            window.backgroundColor = WorkspacePalette.toolbarNS
+            if window.toolbarStyle != .unifiedCompact { window.toolbarStyle = .unifiedCompact }
             let required = max(1060, controller.splitViewItems.filter { !$0.isCollapsed }.reduce(0) { $0 + $1.minimumThickness } + 8)
             window.contentMinSize.width = required
             if window.contentLayoutRect.width < required, !window.styleMask.contains(.fullScreen) {
@@ -108,7 +112,7 @@ private struct ReaderPane: View {
             ViewThatFits(in: .horizontal) {
                 readerToolbar(compact: false)
                 readerToolbar(compact: true)
-            }.font(Design.body).padding(.horizontal, 12).frame(height: 48).disabled(model.selectedID == nil)
+            }.font(Design.body).padding(.horizontal, 12).frame(height: Design.paneHeaderHeight).disabled(model.selectedID == nil)
             if showSearch {
                 HStack {
                     TextField(L("搜索论文原文"), text: $reader.search).textFieldStyle(.roundedBorder).onSubmit { reader.findNext() }
@@ -242,7 +246,7 @@ private struct NotePane: View {
                 Spacer()
                 Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .insertImage, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                 label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 30, height: 30)
-            }.padding(.horizontal, 20).frame(height: 50).background(WorkspacePalette.chrome)
+            }.padding(.horizontal, 20).frame(height: Design.paneHeaderHeight).background(WorkspacePalette.chrome)
             HStack(spacing: 4) {
                 Menu {
                     Button(L("一级标题")) { editor.format("h1") }; Button(L("二级标题")) { editor.format("h2") }; Button(L("三级标题")) { editor.format("h3") }
@@ -270,10 +274,10 @@ private struct NotePane: View {
             }
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle").foregroundStyle(.secondary)
-                Text(L(model.status)).lineLimit(1)
+                Text(L(model.status)).lineLimit(1).accessibilityIdentifier("note.status")
                 Spacer(minLength: 0)
                 Text("Markdown").foregroundStyle(.tertiary)
-            }.font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34).background(WorkspacePalette.chrome)
+            }.font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: Design.footerHeight).background(WorkspacePalette.chrome)
         }.background(WorkspacePalette.paper)
         .contextMenu { ForEach([CommandID.capture, .quote, .save, .exportMarkdown, .exportPDF, .insertImage]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
     }

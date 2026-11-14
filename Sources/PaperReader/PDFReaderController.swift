@@ -2,6 +2,7 @@ import AppKit
 import PDFKit
 import Combine
 import PaperCore
+import SwiftUI
 
 /// Single ownership transfer: constructed in detached task, used only on MainActor afterwards.
 private final class LoadedPDF: @unchecked Sendable {
@@ -48,6 +49,7 @@ private final class LoadedPDF: @unchecked Sendable {
         view.backgroundColor = WorkspacePalette.canvasNS
         view.minScaleFactor = 0.15; view.maxScaleFactor = 6
         view.command = { [weak self] in self?.runCommand?($0) }
+        view.canShowSelectionActions = { [weak self] in self?.captureMode == false && self?.annotations.tool == .select }
         capture.pdfView = view
         sourceOverlay.pdfView = view
         annotations.overlay.pdfView = view; focus.overlay.pdfView = view
@@ -78,6 +80,7 @@ private final class LoadedPDF: @unchecked Sendable {
     }
 
     func load(url: URL, page: Int, scale: Double, readingPoint: PDFPoint? = nil) async throws {
+        view.dismissSelectionActions()
         let token = UUID(); loadToken = token
         let stamp = try await Task.detached { try FileStamp(url) }.value
         let document: PDFDocument
@@ -150,6 +153,46 @@ private final class LoadedPDF: @unchecked Sendable {
     var command: ((CommandID) -> Void)?
     var commandMenu: (() -> [NSMenuItem])?
     var focusKey: ((Int) -> Bool)?
+    var canShowSelectionActions: () -> Bool = { true }
+    private var selectionMonitor: Any?
+    private let selectionPopover = NSPopover()
+    private var selectionGestureStart: NSPoint?
+    private var selectionGestureText: String?
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let selectionMonitor { NSEvent.removeMonitor(selectionMonitor); self.selectionMonitor = nil }
+        guard window != nil else { dismissSelectionActions(); return }
+        selectionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .leftMouseDown, .scrollWheel]) { [weak self] event in
+            guard let self, event.window === self.window else { return event }
+            if event.type == .scrollWheel { self.dismissSelectionActions(); return event }
+            let point = self.convert(event.locationInWindow, from: nil)
+            if event.type == .leftMouseDown {
+                self.dismissSelectionActions()
+                self.selectionGestureStart = self.canShowSelectionActions() && self.visibleRect.contains(point) ? point : nil
+                self.selectionGestureText = self.currentSelection?.string
+            } else if event.type == .leftMouseUp, let start = self.selectionGestureStart {
+                self.selectionGestureStart = nil
+                let selecting = hypot(point.x - start.x, point.y - start.y) > 3 || event.clickCount > 1 || self.currentSelection?.string != self.selectionGestureText
+                if selecting, self.visibleRect.contains(point) { DispatchQueue.main.async { [weak self] in self?.showSelectionActions() } }
+            }
+            return event
+        }
+    }
+    func dismissSelectionActions() { selectionPopover.close() }
+    func showSelectionActions() {
+        guard window != nil, let selection = currentSelection, selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+              let line = selection.selectionsByLine().last, let page = line.pages.last else { dismissSelectionActions(); return }
+        let anchor = convert(line.bounds(for: page), from: page).intersection(visibleRect)
+        guard !anchor.isNull, !anchor.isEmpty else { dismissSelectionActions(); return }
+        selectionPopover.behavior = .semitransient
+        selectionPopover.animates = false
+        selectionPopover.contentViewController = NSHostingController(rootView: PDFSelectionActions { [weak self] id in
+            self?.dismissSelectionActions()
+            self?.command?(id)
+        })
+        selectionPopover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
+    }
+    var selectionActionsVisible: Bool { selectionPopover.isShown }
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 125, focusKey?(1) == true { return }
         if event.keyCode == 126, focusKey?(-1) == true { return }
@@ -167,6 +210,22 @@ private final class LoadedPDF: @unchecked Sendable {
     }
     @objc private func performMenu(_ sender: NSMenuItem) {
         if let raw = sender.representedObject as? String, let id = CommandID(rawValue: raw) { command?(id) }
+    }
+}
+
+private struct PDFSelectionActions: View {
+    let perform: (CommandID) -> Void
+    var body: some View {
+        HStack(spacing: 4) {
+            action(.highlight, "highlighter", L("高亮"))
+            action(.askAI, "sparkle", L("问 AI"))
+            action(.quote, "text.quote", L("摘录"))
+        }.padding(6).fixedSize()
+    }
+    private func action(_ id: CommandID, _ symbol: String, _ title: String) -> some View {
+        Button { perform(id) } label: { Label(title, systemImage: symbol).font(Design.small).padding(.horizontal, 7).padding(.vertical, 6) }
+            .buttonStyle(.plain).contentShape(RoundedRectangle(cornerRadius: Design.radius))
+            .accessibilityIdentifier("selection." + id.rawValue)
     }
 }
 

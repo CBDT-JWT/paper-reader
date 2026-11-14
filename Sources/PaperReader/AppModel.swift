@@ -380,7 +380,39 @@ import PaperCore
             try await editor.insert(markdown); await flush()
         } catch { self.error = error.localizedDescription }
     }
+    func insertAIExcerpt(_ quote: AIQuote) async {
+        guard let id = activeNoteID else { return }
+        let punctuation = Set("\\`*_{}[]<>()#+-.!|$~=".map { $0 })
+        let block = quote.text.components(separatedBy: "\n").map { line in
+            "> " + line.map { punctuation.contains($0) ? "\\\($0)" : String($0) }.joined()
+        }.joined(separator: "\n")
+        let source = quote.link.map { "[" + quote.label + "](" + $0 + ")" } ?? quote.label
+        do {
+            showNotes = true
+            guard activeNoteID == id else { return }
+            try await editor.insert("\n\n" + block + "\n\n" + source + "\n\n")
+            await flush()
+        } catch { self.error = error.localizedDescription }
+    }
     func openLink(_ url: URL) async {
+        if url.scheme == "paperreader", url.host == "file" {
+            do {
+                guard let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "path" })?.value else { throw LibraryError.invalidPath }
+                let file = try LibraryStore.containedURL(path, in: store.downloadDirectory)
+                guard FileManager.default.fileExists(atPath: file.path) else { throw CocoaError(.fileNoSuchFile) }
+                NSWorkspace.shared.activateFileViewerSelecting([file])
+            } catch { self.error = error.localizedDescription }
+            return
+        }
+        if url.scheme == "paperreader", url.host == "conversation" {
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            guard let id = items.first(where: { $0.name == "paper" })?.value.flatMap(UUID.init(uuidString:)),
+                  let message = items.first(where: { $0.name == "message" })?.value.flatMap(UUID.init(uuidString:)), papers.contains(where: { $0.id == id }) else { return }
+            if selectedID != id { await select(id) }
+            guard selectedID == id else { return }
+            ai.expanded = true; ai.revealMessageID = message; ai.revealRequest += 1
+            return
+        }
         if url.scheme == "paperreader", url.host == "page", let number = Int(url.lastPathComponent) { reader.goToPage(number - 1); return }
         if url.scheme == "paperreader", url.host == "document", let root = store.documentsRoot {
             let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []

@@ -116,7 +116,9 @@ extension AppModel {
         case .redoAnnotation: reader.annotations.redo()
         case .exportAnnotated: exportAnnotations()
         case .metadata: metadataPresented = true
-        case .askAI: ai.toggleVisibility()
+        case .askAI:
+            if reader.view.currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { ai.askPDFSelection() }
+            else { ai.toggleVisibility() }
         case .outline: OutlineWindow.show(model: self)
         case .noteWindow: NoteWindow.show(model: self)
         default: return false

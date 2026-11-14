@@ -193,7 +193,7 @@ struct CodexAIProvider: AIProvider {
                     if !model.isEmpty { params["model"] = .string(model) }
                     let thread = try await rpc.request("thread/start", .object(params))
                     guard let id = thread["thread"]["id"].string else { throw AIError.message(L("Codex 返回了无效的会话。")) }
-                    let prompt = request.messages.map { "\($0.role.uppercased()):\n\($0.content)" }.joined(separator: "\n\n")
+                    let prompt = request.messages.map { "\($0.role.uppercased()):\n\($0.contextContent)" }.joined(separator: "\n\n")
                     _ = try await rpc.request("turn/start", .object(["threadId": .string(id), "input": .array([.object(["type": .string("text"), "text": .string(prompt), "text_elements": .array([])])] + request.images.map { .object(["type": .string("image"), "url": .string($0.dataURL), "detail": .string("high")]) })]))
                     continuation.yield(.status(L("正在生成回答…")))
                     try await withTaskCancellationHandler { try await done.wait() } onCancel: { Task { await rpc.stop(); await done.finish(error: CancellationError()) } }

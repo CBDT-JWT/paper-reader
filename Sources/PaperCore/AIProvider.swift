@@ -22,12 +22,33 @@ public enum JSONValue: Codable, Sendable, Equatable {
     public var text: String { String(data: (try? JSONEncoder().encode(self)) ?? Data(), encoding: .utf8) ?? "null" }
     public static func parse(_ text: String) throws -> JSONValue { try JSONDecoder().decode(Self.self, from: Data(text.utf8)) }
 }
+public struct AIQuote: Codable, Identifiable, Sendable, Equatable {
+    public var id: UUID
+    public var text: String
+    public var label: String
+    public var source: SourceReference?
+    public var link: String?
+    public init(id: UUID = UUID(), text: String, label: String, source: SourceReference? = nil, link: String? = nil) {
+        self.id = id
+        self.text = text
+        self.label = label
+        self.source = source
+        self.link = link
+    }
+}
 public struct AIMessage: Codable, Identifiable, Sendable, Equatable {
     public var id: UUID
     public var role: String
     public var content: String
     public var date: Date
-    public init(id: UUID = UUID(), role: String, content: String, date: Date = .now) { self.id = id; self.role = role; self.content = content; self.date = date }
+    public var quote: AIQuote?
+    public init(id: UUID = UUID(), role: String, content: String, date: Date = .now, quote: AIQuote? = nil) {
+        self.id = id; self.role = role; self.content = content; self.date = date; self.quote = quote
+    }
+    public var contextContent: String {
+        guard let quote else { return content }
+        return "<quoted_context source=\"\(quote.label)\">\n\(quote.text)\n</quoted_context>\n\n" + content
+    }
 }
 public struct AITool: Sendable {
     public let name: String; public let description: String; public let schema: JSONValue
@@ -75,9 +96,9 @@ public struct CloudAIProvider: AIProvider {
     private func run(_ request: AIRequest, continuation: AsyncThrowingStream<AIEvent, Error>.Continuation) async throws {
         let local = ["localhost", "127.0.0.1", "::1"].contains(baseURL.host ?? "")
         guard baseURL.host != nil, baseURL.scheme == "https" || baseURL.scheme == "http" && local, !model.isEmpty else { throw AIError.message(L("请配置有效的模型和 HTTPS 服务地址。")) }
-        var messages = request.messages.map { JSONValue.object(["role": .string($0.role), "content": .string($0.content)]) }
+        var messages = request.messages.map { JSONValue.object(["role": .string($0.role), "content": .string($0.contextContent)]) }
         if !request.images.isEmpty, let last = messages.indices.last {
-            messages[last] = .object(["role": .string("user"), "content": .array([.object(["type": .string("text"), "text": .string(request.messages.last?.content ?? "")])] + request.images.map { .object(["type": .string("image_url"), "image_url": .object(["url": .string($0.dataURL), "detail": .string("high")])]) })])
+            messages[last] = .object(["role": .string("user"), "content": .array([.object(["type": .string("text"), "text": .string(request.messages.last?.contextContent ?? "")])] + request.images.map { .object(["type": .string("image_url"), "image_url": .object(["url": .string($0.dataURL), "detail": .string("high")])]) })])
         }
         for _ in 0..<10 {
             try Task.checkCancellation()

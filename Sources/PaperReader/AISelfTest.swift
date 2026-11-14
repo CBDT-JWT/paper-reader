@@ -42,12 +42,12 @@ import PaperCore
         let ai = model.ai, settings = ai.settings
         await ai.finish()
         let saved = settings.configuration, savedMessages = ai.messages, savedProposal = ai.proposal, savedDraft = ai.draft
-        let savedNotes = model.showNotes
+        let savedNotes = model.showNotes, savedQuote = ai.pendingQuote
         defer {
             ai.expanded = false; ai.visible = false; ai.error = nil; ai.messages = savedMessages; ai.proposal = savedProposal; ai.draft = savedDraft
             settings.backend = saved.backend; settings.model = saved.model; settings.endpoint = saved.endpoint
             settings.codexPath = saved.codexPath; settings.key = saved.key; settings.allowWeb = saved.allowWeb
-            model.showNotes = savedNotes
+            model.showNotes = savedNotes; ai.pendingQuote = savedQuote
         }
         do {
             let emphasis = try await model.editor.webView.evaluateJavaScript("(() => { const b=document.querySelector('.tiptap strong'), i=document.querySelector('.tiptap em'); return !!b && !!i && Number(getComputedStyle(b).fontWeight)>=600 && getComputedStyle(i).fontStyle==='italic' })()") as? Bool
@@ -69,8 +69,89 @@ import PaperCore
             try check(true, "Actual offline conversation WKWebView renders headings, bold, italic, tables, page links and KaTeX")
             let safe = try await webView.evaluateJavaScript("document.querySelectorAll('script:not([src]), iframe, [onerror]').length === 0") as? Bool
             try check(safe == true, "Conversation uses packaged scripts and has no injected script, iframe or event attributes")
+            try await wait("Footer accessibility frames missing") { accessibilityFrame("ai.hint", in: window.contentView) != nil && accessibilityFrame("note.status", in: window.contentView) != nil }
+            let noteStatusFrame = accessibilityFrame("note.status", in: window.contentView)!
+            let inputHintFrame = accessibilityFrame("ai.hint", in: window.contentView)!
+            try check(abs(noteStatusFrame.midY - inputHintFrame.midY) < 2, "Note saved status and AI input hint align on the same native footer baseline")
+            let wasFullScreen = window.styleMask.contains(.fullScreen)
+            try await IntegrationSelfTest.setFullScreen(true, window: window)
+            try await wait("Full-screen footer alignment did not settle") {
+                guard let note = accessibilityFrame("note.status", in: window.contentView), let hint = accessibilityFrame("ai.hint", in: window.contentView) else { return false }
+                return abs(note.midY - hint.midY) < 2
+            }
+            try check(window.titlebarAppearsTransparent && window.toolbarStyle == .unifiedCompact, "Full-screen workspace uses compact native chrome with aligned note and conversation footers")
+            try await IntegrationSelfTest.setFullScreen(wasFullScreen, window: window)
+            if let input = input(in: window.contentView) {
+                let originalSubmit = input.submit
+                var submissions = 0
+                input.submit = { submissions += 1 }
+                input.string = ""
+                input.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+                try check(input.hasMarkedText(), "Actual NSTextView accepts a marked input-method composition")
+                let enter = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+                input.keyDown(with: enter)
+                try check(submissions == 0, "Return confirms marked input without submitting a question")
+                input.unmarkText()
+                input.keyDown(with: enter)
+                try check(submissions == 1, "Return submits after input-method composition has completed")
+                let newline = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .shift, timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+                input.keyDown(with: newline)
+                try check(submissions == 1 && input.string.contains("\n"), "Shift Return inserts a newline in the real composer")
+                input.submit = originalSubmit
+                input.string = ""; input.didChangeText()
+            } else { throw IntegrationSelfTest.Failure(message: "Native AI input missing") }
+            let beforeExcerpt = try await model.editor.call("getMarkdown") as? String ?? ""
+            guard let page = model.reader.view.document?.page(at: 0), let selected = page.selection(for: NSRange(location: 0, length: 45)) else { throw IntegrationSelfTest.Failure(message: "PDF text selection fixture missing") }
+            model.reader.view.setCurrentSelection(selected, animate: false)
+            model.reader.view.go(to: selected)
+            model.reader.view.showSelectionActions()
+            try check(model.reader.view.selectionActionsVisible, "Selecting real PDF text presents the native highlight, Ask AI and excerpt popover")
+            model.reader.view.dismissSelectionActions()
+            model.commands.run(.askAI)
+            try await wait("PDF selection quote missing") { ai.pendingQuote?.link != nil }
+            try check(ai.pendingQuote?.text == selected.string && ai.pendingQuote?.source?.page == 0, "Ask AI keeps a visible source-linked PDF quote independently of the question draft")
+            ai.pendingQuote = nil
+            let reply = try await webView.evaluateJavaScript("document.querySelector('.assistant-message .message-content').textContent") as? String ?? ""
+            let replyID = ai.messages.first(where: { $0.role == "assistant" })!.id
+            ai.selectReply(reply, messageID: replyID, excerpt: false)
+            try check(ai.pendingQuote?.source == nil && ai.pendingQuote?.label == L("AI 回答") && ai.pendingQuote?.text == reply, "Selecting an AI answer creates an AI-attributed follow-up quote")
+            ai.selectReply(reply, messageID: replyID, excerpt: true)
+            try await wait("AI excerpt was not inserted") { (try await model.editor.call("getMarkdown") as? String)?.contains("paperreader://conversation?") == true }
+            _ = try await model.editor.call("format", "undo")
+            try check((try await model.editor.call("getMarkdown") as? String) == beforeExcerpt, "AI answer excerpts preserve their source and can be undone in the note")
+            ai.pendingQuote = nil
             if let endpoint = ProcessInfo.processInfo.environment["PAPER_READER_MOCK_API"] {
                 settings.backend = .cloud; settings.endpoint = endpoint; settings.model = "test-model"; settings.key = "test-key"
+                ai.pendingQuote = AIQuote(text: "Selected evidence for context", label: "Synthetic source")
+                ai.draft = "QUOTED_PAYLOAD"
+                ai.send()
+                try await wait("Quoted request did not finish") { !ai.generating }
+                try check(ai.error == nil && ai.messages.contains(where: { $0.role == "user" && $0.quote?.text == "Selected evidence for context" }), "Quoted context survives sending and the real provider HTTP request")
+                try await wait("Quoted message did not render") { (try? await webView.evaluateJavaScript("document.querySelector('.message-quote:not([hidden])')?.textContent.includes('Selected evidence for context')")) as? Bool == true }
+                try check(true, "Sent question renders its quote as a separate conversation block")
+                let selectedReply = try await webView.evaluateJavaScript("(() => { const c=document.querySelector('.assistant-message .message-content'); const r=document.createRange(); r.selectNodeContents(c); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true})); return s.toString().trim() })()") as? String ?? ""
+                try await wait("Reply selection toolbar missing") { (try? await webView.evaluateJavaScript("document.querySelector('.selection-tools')?.hidden === false")) as? Bool == true }
+                _ = try await webView.evaluateJavaScript("document.querySelector('.selection-tools button').click()")
+                try await wait("Reply selection bridge did not set a quote") { ai.pendingQuote?.text == selectedReply }
+                try check(ai.pendingQuote?.label == L("AI 回答"), "The real conversation selection toolbar routes Ask AI through the native quote handler")
+                ai.pendingQuote = nil
+                ai.draft = "DOWNLOAD_FIXTURE"
+                ai.send()
+                try await wait("AI download request did not finish") { !ai.generating }
+                let downloaded = model.store.downloadDirectory.appendingPathComponent("AI Downloads/evidence.csv")
+                try check(ai.error == nil && (try? String(contentsOf: downloaded, encoding: .utf8)) == "name,value\nverified,42\n", "The AI downloadFile tool downloads a real HTTP file into the workspace subfolder")
+                try check(ai.messages.contains(where: { $0.content.contains("paperreader://file?") }), "Completed downloads appear as source-linked conversation items")
+                let fileURL = URL(string: endpoint.replacingOccurrences(of: "/v1", with: "/files/evidence.csv"))!
+                let second = try await model.store.downloadFile(from: fileURL, folder: "AI Downloads", fileName: "evidence.csv")
+                try check(second.path == "AI Downloads/evidence (2).csv" && (try? Data(contentsOf: downloaded)) == (try? Data(contentsOf: model.store.downloadDirectory.appendingPathComponent(second.path))), "Repeated downloads choose a new filename and preserve the existing file")
+                do { _ = try await model.store.downloadFile(from: fileURL, folder: "../escape"); throw IntegrationSelfTest.Failure(message: "Download traversal accepted") }
+                catch LibraryError.invalidPath { checks.append("Downloads reject paths outside the workspace") }
+                do { _ = try await model.store.downloadFile(from: URL(string: "file:///etc/hosts")!); throw IntegrationSelfTest.Failure(message: "Local file download accepted") }
+                catch LibraryError.invalidPath { checks.append("The model download tool accepts no local-file URLs") }
+                let missing = URL(string: endpoint.replacingOccurrences(of: "/v1", with: "/files/missing"))!
+                do { _ = try await model.store.downloadFile(from: missing, folder: "Failed download"); throw IntegrationSelfTest.Failure(message: "Failed download accepted") }
+                catch is IntegrationSelfTest.Failure { throw IntegrationSelfTest.Failure(message: "Failed download accepted") }
+                catch { try check(!FileManager.default.fileExists(atPath: model.store.downloadDirectory.appendingPathComponent("Failed download").path), "Failed HTTP downloads leave no destination file or partial workspace folder") }
                 settings.backend = .localHTTP; settings.endpoint = endpoint.replacingOccurrences(of: "/v1", with: "/local/v1"); settings.model = "local-fixture-model"
                 await settings.refreshModels()
                 try check(settings.models.contains("test-model"), "Local HTTP model catalogue loads through the provider selected in the drawer")
@@ -113,6 +194,21 @@ import PaperCore
             checks += try await transport(output: output, executable: saved.codexPath)
         } catch { await ai.finish(); throw error }
         return checks
+    }
+
+    private static func accessibilityFrame(_ identifier: String, in element: Any?) -> NSRect? {
+        guard let node = element as? any NSAccessibilityProtocol else { return nil }
+        if node.accessibilityIdentifier() == identifier { return node.accessibilityFrame() }
+        for child in node.accessibilityChildren() ?? [] {
+            if let frame = accessibilityFrame(identifier, in: child) { return frame }
+        }
+        return nil
+    }
+
+    private static func input(in view: NSView?) -> AIInputTextView? {
+        if let input = view as? AIInputTextView { return input }
+        for child in view?.subviews ?? [] { if let result = input(in: child) { return result } }
+        return nil
     }
 
     private static func transcript(in view: NSView?) -> WKWebView? {

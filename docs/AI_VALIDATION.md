@@ -1,3 +1,11 @@
+# AI interaction update — 2026-11-14
+
+Version 0.4.8 adds source-linked PDF selection quotes and AI-answer selection actions. Quotes are persisted separately from the question text and included in both provider transports. Old conversation records decode with no quote. The native composer checks marked text before handling Return and explicitly inserts Shift-Return newlines. Its placeholder uses the same AppKit layout engine, font and container origin as entered text. Workspace download tools accept HTTP(S) input and contained relative destinations, publish a complete file with an exclusive hard link, preserve filename collisions and expose a Finder location in the conversation.
+
+The initial run passed 54 Swift core tests, 12 editor tests and 167 English native checks, including actual NSTextView composition, native PDF selection actions, rendered conversation quotes, WebKit answer selection bridging, undoable excerpts, a real loopback HTTP tool download, duplicate filename preservation, path rejection and HTTP failure cleanup. The Chinese run exposed a Shift-Return difference and the implementation now calls the native newline action explicitly. Earlier Chinese passes also encountered an intermittent annotation-undo assertion and a foreground focus-animation timeout. The publisher requested stopping tests before the final footer/full-screen and input refinements completed their rerun. The final version is built, with the final native interaction regression pending.
+
+The existing provider and transport evidence follows.
+
 # AI workspace validation — 2026-11-11
 
 Expanded conversations use the fourth, collapsible item of the native `NSSplitViewController`. The note editor stays visible beside the conversation. Its closed state releases the space to the reading workspace. Connection controls expose provider selection, model catalogues, custom model names and connection settings. Each provider stores its own model and endpoint. Requests take an immutable configuration snapshot at send time.

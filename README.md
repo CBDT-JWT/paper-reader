@@ -1,6 +1,11 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.7 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.8 发行版：Phase 1 技术验证及 Phase 2–4 的核心实现**，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+
+0.4.8 增加 PDF 选区浮动操作、带原文引用的 AI 提问，以及 AI 回答选区的追问和摘录。输入框使用原生文本布局，输入法组词期间的 Enter 交由输入法处理，Shift+Enter 显式插入换行。笔记状态栏与对话输入提示共用 34 pt 底栏，全屏窗口采用统一紧凑顶栏。图标底板改为天蓝色。
+
+AI 的 `downloadFile(url, folder?, fileName?)` 工具将完整 HTTP(S) 下载保存到当前工作区的相对文件夹。用户请求下载时使用该工具。独立管理库将文件放在其 Downloads 目录。已存在的文件自动另取名称，下载结果提供文件位置、来源 URL、大小和 MIME 类型，在对话中可定位到 Finder。工具复用工作区路径校验，使用独立临时网络会话，文件完成后原子发布。
+
 
 官网：[www.weitao-jiang.cn/paper-reader/](https://www.weitao-jiang.cn/paper-reader/) · [下载与版本记录](https://github.com/CBDT-JWT/paper-reader/releases)
 
@@ -153,7 +158,7 @@ Library/
 
 ## 验证与限制
 
-运行 `./scripts/test.sh`，在隔离临时库中执行 53 项 Swift 测试、12 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查，并运行依赖审计。设置 `PAPER_READER_TEST_FOCUS_PDF=/绝对路径/论文.pdf` 可增加外部 PDF 的只读逐行、跨栏及图片聚焦回归。设置 `PAPER_READER_LIVE_CODEX=1` 会验证 Finder 环境下的真实 Codex 启动、模型列表及合成问题的流式回答。`PAPER_READER_LIVE_TESTS=1` 还会运行真实 Crossref 与图像理解检查。测试记录见 [聚焦验证](docs/FOCUS_MOTION.md)、[AI 验证](docs/AI_VALIDATION.md) 和 [工作区验证](docs/ICLOUD_VALIDATION.md)。
+运行 `./scripts/test.sh`，在隔离临时库中执行 54 项 Swift 测试、12 项编辑器测试、中英文真实原生/WKWebView 集成检查，以及文件夹工作区切换检查，并运行依赖审计。设置 `PAPER_READER_TEST_FOCUS_PDF=/绝对路径/论文.pdf` 可增加外部 PDF 的只读逐行、跨栏及图片聚焦回归。设置 `PAPER_READER_LIVE_CODEX=1` 会验证 Finder 环境下的真实 Codex 启动、模型列表及合成问题的流式回答。`PAPER_READER_LIVE_TESTS=1` 还会运行真实 Crossref 与图像理解检查。测试记录见 [聚焦验证](docs/FOCUS_MOTION.md)、[AI 验证](docs/AI_VALIDATION.md) 和 [工作区验证](docs/ICLOUD_VALIDATION.md)。
 
 本版的明确边界：
 

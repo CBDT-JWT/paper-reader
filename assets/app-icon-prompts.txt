@@ -7,3 +7,7 @@ Edit prompt:
 Edit this macOS app icon asset. Preserve the exact central two-page design, blue folded tab, charcoal strokes and small amber highlight. Repair only the outer silhouette and alpha matte: remove every stray white speck, halo, rough/scalloped edge, debris and partially transparent noise outside the tile. Give the warm-white rounded-square tile one mathematically clean smooth continuous antialiased silhouette with true fully transparent empty space beyond it. No drop shadow outside the tile. Ensure the canvas is an exact 1024 by 1024 square, with the complete tile centered and approximately 84% of the canvas width, equal padding. Production-ready pristine macOS app icon, not a textured paper cutout. Do not add any text or objects.
 
 The generated source is 1254 square pixels despite the requested canvas size. Standard macOS icon representations are resized by sips at package time, up to 1024 square pixels; the original source bitmap is retained without manual retouching.
+
+
+2026-11-14 sky-blue background edit, built-in image_gen
+Edit this existing macOS Paper Reader app icon. Change only the rounded square tile background from ivory to refined soft sky blue (#7BBBEA), with subtle matte lighting and gentle tonal depth. Preserve the two white paper sheets, charcoal text strokes, cobalt bookmark, small amber highlight, proportions and composition. Clean antialiased silhouette with truly transparent pixels outside the rounded tile. Remove stray edge speckles. No words or additional objects. Premium, restrained macOS icon. Square output.

@@ -1,31 +1,30 @@
 {
-  "version": "0.4.7",
+  "version": "0.4.8",
   "status": "stable",
   "architecture": "arm64",
   "minimumSystemVersion": "14.0",
-  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.7/PaperReader-0.4.7-arm64.dmg",
-  "sha256": "5d6bc05702a9d45224ac693fc44aedeaf6efeefd8e02a200842060c07359a856",
+  "url": "https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.8/PaperReader-0.4.8-arm64.dmg",
+  "sha256": "4857fd66fc62a1b62353f017c1bdf6bf039120f691cce0d3062ee64e07ebdba8",
   "notarized": true,
-  "build": "12",
-  "size": 11067822,
+  "build": "13",
+  "size": 11235925,
   "teamID": "Q83556V27Y",
   "applicationNotarization": {
-    "id": "bf383cfe-bd57-424c-bfe8-afd19340061d",
+    "id": "d372a4c1-b1ea-4b38-a2e6-c5fe2c2a65a8",
     "status": "Accepted"
   },
   "dmgNotarization": {
-    "id": "2f72f16a-c49e-4054-8eda-c8992f6bc366",
+    "id": "94696f02-7871-4937-a79f-4862f533a2b1",
     "status": "Accepted"
   },
-  "publicDownloadVerified": true,
+  "publicDownloadVerified": false,
   "appAndDMGStaplerValidated": true,
   "gatekeeperApp": "Notarized Developer ID",
   "gatekeeperDMG": "Notarized Developer ID",
-  "swiftTests": 53,
+  "swiftTests": 54,
   "editorTests": 12,
   "nativeSourceChecks": {
-    "en": 150,
-    "zh-Hans": 150
+    "en": 167
   },
   "nativeAIRecheck": {
     "en": 21,
@@ -38,25 +37,32 @@
   },
   "interactiveFocusChecksSkipped": 0,
   "liveSignedFeedVerified": true,
-  "automaticInstallRelaunchValidated": true,
-  "automaticUpdateSourceVersion": "0.4.6",
-  "automaticUpdateSourceBuild": "11",
-  "installedPublicArtifactVersionVerified": true,
-  "installedPublicArtifactSignatureVerified": true,
+  "automaticInstallRelaunchValidated": false,
+  "automaticUpdateSourceVersion": "0.4.7",
+  "automaticUpdateSourceBuild": "12",
+  "installedPublicArtifactVersionVerified": false,
+  "installedPublicArtifactSignatureVerified": false,
   "liveWebsiteMetadataVerified": true,
-  "githubVerificationRun": 43265296997,
-  "websiteDeploymentRun": 43265725282,
+  "githubVerificationRun": null,
+  "websiteDeploymentRun": 43569547626,
   "actualLocalModelInferenceValidated": false,
   "workspaceSignedReleaseChecks": {
     "en": 30,
     "zh-Hans": 30
   },
-  "nativeReaderRegressionSourceVersion": "0.4.4",
+  "nativeReaderRegressionSourceVersion": "0.4.8",
   "nativeAIRecheckSourceVersion": "0.4.3",
   "earlierMacOSCoreAndPackagingCIPassed": true,
   "twoMacConcurrentICloudRuntimeValidated": false,
   "iconOnlyAIActionBesideReadingToolsVerified": true,
   "legacyPageCitationRepairVerified": true,
   "workspaceSignedReleaseChecksSourceVersion": "0.4.6",
-  "whiteLightModeEditorRuntimeVerified": true
+  "whiteLightModeEditorRuntimeVerified": true,
+  "finalNativeRegressionCompleted": false,
+  "testsStoppedAtPublisherRequest": true,
+  "nativeChecksPhase": "Before final input and layout refinements",
+  "workspaceSourceChecksSourceVersion": "0.4.7",
+  "whiteLightModeEditorRuntimeVerifiedSourceVersion": "0.4.7",
+  "iconOnlyAIActionBesideReadingToolsVerifiedSourceVersion": "0.4.6",
+  "legacyPageCitationRepairVerifiedSourceVersion": "0.4.6"
 }

@@ -1,9 +1,18 @@
-# Distribution validation — 2026-11-13
+# Distribution validation — 2026-11-14
 
 
 
 
-## Current release 0.4.7 / build 12
+
+## Current release 0.4.8 / build 13
+
+Published [v0.4.8](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.8) from `1d55cc1`, containing source-linked selection questions, AI-answer selection actions, workspace downloads, input-method handling, shared header/footer dimensions and the sky-blue icon. The optimized application compiled successfully. Application notarization `d372a4c1-b1ea-4b38-a2e6-c5fe2c2a65a8` and DMG notarization `94696f02-7871-4937-a79f-4862f533a2b1` were Accepted. The distribution pipeline stapled and assessed both artifacts, signed the update feed and published the 11,235,925-byte DMG with SHA-256 `4857fd66fc62a1b62353f017c1bdf6bf039120f691cce0d3062ee64e07ebdba8`.
+
+The publisher requested stopping tests during interaction regression. Tests were stopped and the final build was packaged. Completed checks before the final refinements include 54 core tests, 12 editor tests and 167 English native checks. The Chinese runs exposed an intermittent annotation undo assertion, a foreground focus timeout and a Shift-Return behavior difference. The newline path now calls AppKit's newline action explicitly. The subsequent final footer/full-screen and input rerun was interrupted at the publisher's request. Final native interaction verification remains incomplete. See [AI interaction evidence](AI_VALIDATION.md).
+
+The installed application's full-screen window could not be located by computer-use tools, returning cgWindowNotFound. No actual 0.4.7-to-0.4.8 installation/relaunch or final full-resolution visual inspection is claimed. The public release is available through the existing update feed. The public DMG was not downloaded and remounted again after the publisher stopped testing. Earlier public-download and update evidence remains attributed to the historical releases below.
+
+## Historical release 0.4.7 / build 12
 
 Light-mode panels, sidebar, PDF canvas, note and conversation surfaces now use white. The actual bundled editor passed the existing appearance check with `rgb(255, 255, 255)` in both languages. The scoped native workspace run passed 30 checks per language. [Source CI 43265296997](https://github.com/CBDT-JWT/paper-reader/actions/runs/43265296997) passed the core/editor tests, optimized packaging and signature checks. [Website deployment 43265725282](https://github.com/CBDT-JWT/Home/actions/runs/43265725282) succeeded.
 

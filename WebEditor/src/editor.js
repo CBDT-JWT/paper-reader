@@ -5,7 +5,7 @@ import 'katex/dist/katex.min.css'
 import './style.css'
 
 document.documentElement.lang = language
-for (const selector of ['#math-form label', '#math-cancel', '#math-form button[type=submit]']) { const node = document.querySelector(selector); node.textContent = t(node.textContent) }
+for (const selector of ['#math-form label', '#math-cancel', '#math-form button[type=submit]', '#unsupported-title', '#unsupported-hint']) { const node = document.querySelector(selector); node.textContent = t(node.textContent) }
 let editor, paperID = null, loading = false, baselineMarkdown = ""
 const host = document.querySelector('#editor')
 const post = payload => window.webkit?.messageHandlers?.editor?.postMessage(payload)
@@ -43,9 +43,13 @@ function changed() {
   if (paperID && !loading) post({type: 'change', paperID, markdown: editor.getMarkdown()})
 }
 function makeEditor(content = '') {
+  // Construct the replacement before releasing the previous editor. Failed
+  // document loads must leave a usable parser for the next open attempt.
+  const container = document.createElement('div')
+  const replacement = createEditor(container, {content, onMath: showMath, onUpdate: changed})
   editor?.destroy()
-  host.replaceChildren()
-  editor = createEditor(host, {content, onMath: showMath, onUpdate: changed})
+  host.replaceChildren(container)
+  editor = replacement
 }
 makeEditor()
 
@@ -65,7 +69,17 @@ document.addEventListener('click', event => {
 document.addEventListener('drop', event => { event.preventDefault() })
 
 window.paperEditor = {
-  clearDocument() { loading = true; paperID = null; makeEditor(); editor.setEditable(false); loading = false; return true },
+  clearDocument() {
+    loading = true
+    paperID = null
+    makeEditor()
+    editor.setEditable(false)
+    document.querySelector('#unsupported').hidden = true
+    host.hidden = false
+    mathPanel.hidden = true
+    loading = false
+    return true
+  },
   rebindDocument(id) {
     if (!paperID) return null
     paperID = id
@@ -80,6 +94,7 @@ window.paperEditor = {
       document.querySelector('base').href = `paperreader-resource://paper/${paperID}/`
       // A shared workspace note keeps its selection and undo history across PDF switches.
       if (!payload.shared || editor.getMarkdown() !== payload.markdown) makeEditor(parsed)
+      editor.setEditable(true)
       document.querySelector('#unsupported').hidden = true
       host.hidden = false
       mathPanel.hidden = true
@@ -91,7 +106,9 @@ window.paperEditor = {
       host.hidden = true
       const fallback = document.querySelector('#unsupported')
       fallback.hidden = false
-      fallback.textContent = `${error.message}\n\n${payload.markdown}`
+      document.querySelector('#unsupported-message').textContent = error.message
+      document.querySelector('#unsupported-source').textContent = payload.markdown
+      mathPanel.hidden = true
       loading = false
       return {ok: false, error: error.message}
     }
@@ -133,6 +150,7 @@ window.paperEditor = {
     return editor.chain().focus().insertContent(markdown, {contentType: 'markdown'}).run()
   },
   format(action) {
+    if (!paperID) return false
     const chain = editor.chain().focus()
     const commands = {
       bold: () => chain.toggleBold().run(), italic: () => chain.toggleItalic().run(),

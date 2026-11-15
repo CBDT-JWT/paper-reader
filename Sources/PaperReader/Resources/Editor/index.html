@@ -2,6 +2,12 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src paperreader-resource: data:; font-src paperreader-resource:; base-uri paperreader-resource:; connect-src 'none'; form-action 'none'">
 <base href="paperreader-resource://editor/"><title>Paper Reader Notes</title><link rel="stylesheet" href="editor.css"></head>
-<body><main id="editor"></main><pre id="unsupported" hidden></pre>
+<body><main id="editor"></main>
+<section id="unsupported" hidden aria-labelledby="unsupported-title">
+<h2 id="unsupported-title">笔记暂时无法载入</h2>
+<p id="unsupported-message" role="alert"></p>
+<p id="unsupported-hint">原文件已保留，以下为只读 Markdown 源码。</p>
+<pre id="unsupported-source"></pre>
+</section>
 <div id="math-panel" hidden><form id="math-form"><label for="math-input">编辑 LaTeX 公式</label><textarea id="math-input" spellcheck="false" placeholder="E = mc^2"></textarea><div class="actions"><button id="math-cancel" type="button">取消</button><button type="submit">应用公式</button></div></form></div>
 <script src="editor.js"></script></body></html>

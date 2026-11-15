@@ -9,10 +9,12 @@ import { DiagramCodeBlock } from './diagram.js'
 import { TableKit } from '@tiptap/extension-table'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
+import { NoteOrderedList } from './ordered-list.js'
 
 export function extensions(onMath = () => {}) {
   return [
-    StarterKit.configure({codeBlock: false, link: {openOnClick: false, protocols: ['paperreader']}}),
+    StarterKit.configure({codeBlock: false, orderedList: false, link: {openOnClick: false, protocols: ['paperreader']}}),
+    NoteOrderedList,
     Markdown.configure({indentation: {style: 'space', size: 2}}),
     Highlight, ResearchImage, DiagramCodeBlock,
     TableKit.configure({table: {resizable: false}}), TaskList, TaskItem.configure({nested: true, a11y: {checkboxLabel: node => `${t('任务')}: ${node.textContent || t('空白任务')}`}}),

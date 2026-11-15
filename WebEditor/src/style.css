@@ -42,7 +42,10 @@ hr {border: none; border-top: 1px solid var(--border); margin: 24px 0;}
 .actions {display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;}
 button {font: 14px -apple-system, sans-serif; border: none; border-radius: 8px; padding: 7px 14px; background: var(--code); color: var(--ink); cursor: pointer;}
 button[type="submit"] {background: #315fad; color: white;}
-#unsupported {white-space: pre-wrap; overflow-wrap: anywhere; padding: 24px; font: 14px/1.7 ui-monospace, monospace;}
+#unsupported {padding: 30px 28px; max-width: 820px; margin: 0 auto;}
+#unsupported-title {font-size: 20px; margin: 0 0 12px;}
+#unsupported-message, #unsupported-hint {font-size: 14px; color: var(--muted);}
+#unsupported-source {white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; padding: 0; margin-top: 24px; font: 14px/1.7 ui-monospace, monospace;}
 @media print {
   :root {color-scheme: light; --ink: #151515; --surface: white; --code: #f3f3f3; --border: #ccc; --accent: #285d94;}
   body {background: white; color: black;}

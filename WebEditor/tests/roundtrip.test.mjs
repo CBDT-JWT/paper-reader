@@ -34,6 +34,34 @@ for (const [name, markdown] of fixtures) {
     editor.destroy(); element.remove()
   })
 }
+test('empty ordered list items survive loading, insertion and reopening', () => {
+  const editor = createEditor(document.createElement('div'))
+  for (const markdown of [
+    '1. First\n2. ',
+    '1. \n2. Second',
+    '7. First\n8. \n9. Last',
+    '1) First\n2) ',
+    '1. Parent\n   1. Child\n   2. ',
+    '1. First\n2. \n\n### Next section\n\n**Bold** and *italic*.',
+    '1. \n\n   > Quoted block',
+  ]) {
+    const parsed = validateMarkdown(editor, markdown)
+    editor.commands.setContent(parsed)
+    editor.state.doc.check()
+    assert.ok(editor.view.dom.querySelector('ol li'))
+    const output = editor.getMarkdown()
+    assert.deepEqual(canonicalDocument(validateMarkdown(editor, output)), canonicalDocument(parsed))
+    // These normal Markdown entry points also need valid list-item content.
+    editor.commands.setContent(markdown, {contentType: 'markdown'})
+    editor.state.doc.check()
+    assert.deepEqual(canonicalDocument(validateMarkdown(editor, editor.getMarkdown())), canonicalDocument(parsed))
+    editor.commands.setContent('')
+    editor.commands.insertContent(markdown, {contentType: 'markdown'})
+    editor.state.doc.check()
+    assert.deepEqual(canonicalDocument(validateMarkdown(editor, editor.getMarkdown())), canonicalDocument(parsed))
+  }
+  editor.destroy()
+})
 test('unsupported syntax is rejected without mutating content', () => {
   const editor = createEditor(document.createElement('div'))
   editor.commands.setContent('<p>Original content</p>')

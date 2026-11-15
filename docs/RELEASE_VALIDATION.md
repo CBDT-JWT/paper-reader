@@ -1,6 +1,15 @@
 # Distribution validation — 2026-11-16
 
-## Current release 0.4.15 / build 20
+## Current release 0.4.16 / build 21
+
+Published [v0.4.16](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.16) from `9b2f893`. The effort selector now uses a compact popover and discrete track, with diagonal rainbow stripes and a static metallic highlight at the highest supported setting. Provider and model search occupy a separate page with bounded scrolling. Default Codex model and effort metadata come from the existing model/list response. Debug and optimized Swift builds, offline editor bundling, application packaging and the 359-key localization check completed.
+
+The user requested skipping functional and UI tests. Visual appearance, pointer dragging, keyboard and VoiceOver adjustment, parameter persistence and actual provider round-trips remain unverified at runtime in this iteration.
+
+Application notarization `e6d8446c-197e-4319-8517-42d3d1c6290d` and DMG notarization `3cf010e0-9d5f-470a-b265-fd5d4a37de2e` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,687,178-byte DMG SHA-256 is `14544d2b879dc747f085849382a1502947f693b69a171112909f049f197f922d`, matching the GitHub asset digest. Home deployment run `43740098953` succeeded. Live release metadata and build-21 feed match the repository, and Sparkle's verifier accepts the live feed signature. Installation and relaunch were left to the normal update flow.
+
+
+## Historical release 0.4.15 / build 20
 
 Published [v0.4.15](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.15) from `8450687`, including the composer, publication-badge and literature-graph implementation in `8a20835` and final compatibility changes in `f0f3bde`. Debug and optimized Swift builds, offline editor bundling, app packaging and the 355-key localization check completed. This iteration followed the user's request to skip functional and UI tests. OpenAlex response handling, graph interaction, AI publication identification, composer layout and full-screen appearance remain unverified at runtime.
 

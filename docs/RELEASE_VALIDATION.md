@@ -1,10 +1,18 @@
-# Distribution validation — 2026-11-14
+# Distribution validation — 2026-11-15
 
 
 
 
 
-## Current release 0.4.8 / build 13
+## Current release 0.4.9 / build 14
+
+Published [v0.4.9](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.9) with the empty ordered-list fix in `33ca519` and release-source push ordering in `9d18aff`. Tiptap 3.33.0's ordered-list parser emitted a list item with empty content for an unfinished numbered item. Its serializer then dereferenced the missing first paragraph. The app now extends the existing MIT-licensed OrderedList parser and supplies its required leading paragraph, retaining every item. Import, normal Markdown insertion/paste and the conversation renderer share this extension. Dependency versions are unchanged, with the existing list package explicitly declared as a direct dependency.
+
+Two focused regressions passed. One exercises seven empty/nested/non-default-number list fixtures through validation, setContent, insertContent and save/reopen, checking the ProseMirror schema. The other runs the actual editor JavaScript entry point against the document bridge, verifies heading/list rendering, read-only rejection, successful recovery and editing an empty shared note. A separate read-only reproduction loaded the reported note and validated its Markdown round-trip. The original file and its local recovery backup remained byte-identical. This used an isolated DOM, with no write to the user's note. A final native WKWebView/full-screen inspection and installation/relaunch were not repeated, following the earlier request to stop broad UI testing. The installed application was still 0.4.8 during packaging.
+
+The optimized application compiled. Application notarization `eb318d70-6da2-4b03-9d44-ccfe7c5edea3` and DMG notarization `3071f476-9fb0-4f20-a7d4-352bca520692` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment as Notarized Developer ID. The DMG SHA-256 is `46e3170bd1e59377ff91002bb9556f9a5ef9552a8839f88d6e3539eff58110c4`. Sparkle generated and verified the signed update feed. GitHub initially rejected the unpublished target commit. The source was pushed and publication resumed using the existing signed/notarized artifacts. The release script now pushes committed source before creating a release.
+
+## Historical release 0.4.8 / build 13
 
 Published [v0.4.8](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.8) from `1d55cc1`, containing source-linked selection questions, AI-answer selection actions, workspace downloads, input-method handling, shared header/footer dimensions and the sky-blue icon. The optimized application compiled successfully. Application notarization `d372a4c1-b1ea-4b38-a2e6-c5fe2c2a65a8` and DMG notarization `94696f02-7871-4937-a79f-4862f533a2b1` were Accepted. The distribution pipeline stapled and assessed both artifacts, signed the update feed and published the 11,235,925-byte DMG with SHA-256 `4857fd66fc62a1b62353f017c1bdf6bf039120f691cce0d3062ee64e07ebdba8`.
 

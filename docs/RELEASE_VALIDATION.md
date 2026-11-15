@@ -4,7 +4,13 @@
 
 
 
-## Current release 0.4.10 / build 15
+## Current release 0.4.11 / build 16
+
+Published [v0.4.11](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.11) from `ff1a0dc`. The optimized application compiled. Application notarization `390a7578-b88c-4278-82b2-4c98fccc892c` and DMG notarization `b1900297-c226-4f35-a784-c5269799e771` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,289,282-byte DMG SHA-256 is `e842eb429c37b66b85c61a30b7e7367fd39e05556e9b38c3540899459b11d08b`. The initial notarization attempt could not access the PaperReader profile. Publication resumed after the local keychain was unlocked.
+
+Eighteen focused native checks passed in each of Chinese/light and English/dark using disposable libraries. The configured width was captured before opening the drawer and its actual full-screen width measured 300 points. Native split resizing reached 260 points and reopening retained that width. Quote and long-text insertion, prior wider-preference migration, manual-width persistence, selection toolbar placement/dismissal and file-tree regressions also passed. See [width evidence](WORKSPACE_FIXES.md). Full-window visual inspection and actual installation/relaunch remain unverified.
+
+## Historical release 0.4.10 / build 15
 
 Published [v0.4.10](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.10) from `88cbd82`. The optimized application compiled. Application notarization `557b932c-32c8-4508-933a-0c4e6a539a2b` and DMG notarization `d7b8920b-2e68-4086-a2b4-45fdbd67ce8f` were Accepted. Both artifacts were stapled and passed Gatekeeper as Notarized Developer ID. The 11,282,423-byte DMG SHA-256 is `b23b7cd4e9c565fc33ee78c865a68aa60d0e3c533d37201dbe8ac1270d60afc7`. The publication pipeline verified the signed Sparkle feed and pushed the website metadata.
 

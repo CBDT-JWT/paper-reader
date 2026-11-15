@@ -17,6 +17,9 @@ if EXISTING_DRAFT="$(gh release view "$TAG" --repo CBDT-JWT/paper-reader --json 
 else
   EXISTING_DRAFT=false
 fi
+# GitHub validates a release's target commit against the remote repository.
+# Publish the committed source before creating a release for that commit.
+git push origin HEAD
 scripts/build-app.sh release
 APP="${PAPER_READER_BUILD_DIR:-$HOME/Library/Caches/PaperReader/Build}/Apps/Paper Reader.app"
 PROFILE="${PAPER_READER_NOTARY_PROFILE:-PaperReader}"

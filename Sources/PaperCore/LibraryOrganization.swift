@@ -114,6 +114,13 @@ extension LibraryStore {
             paper.folderID = parent; try persist(paper)
         }
     }
+    public func persistMetadata(_ id: UUID, metadata: Bibliography, expecting previous: Bibliography?) throws -> Bool {
+        var paper = try record(id)
+        guard paper.metadata == previous else { return false }
+        paper.metadata = metadata
+        try persist(paper)
+        return true
+    }
     public func persistMetadata(_ id: UUID, metadata: Bibliography) throws {
         var paper = try record(id); paper.metadata = metadata; try persist(paper)
     }

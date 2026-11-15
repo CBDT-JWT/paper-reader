@@ -4,7 +4,7 @@ import PDFKit
 import Combine
 
 enum CommandID: String, CaseIterable, Codable, Identifiable {
-    case newFolder, focus, focusAutomatic, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, askAI, outline, noteWindow
+    case newFolder, focus, focusAutomatic, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, relatedPapers, askAI, outline, noteWindow
     case open, openFolder, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
     case capture, quote, zoomIn, zoomOut, fit, nextPage, previousPage, sidebar, notes, revealFiles
     var id: String { rawValue }
@@ -22,6 +22,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .undoAnnotation: L("撤销批注")
         case .redoAnnotation: L("重做批注")
         case .exportAnnotated: L("导出带批注的 PDF…")
+        case .relatedPapers: L("关联文献…")
         case .metadata: L("文献信息与引用…")
         case .askAI: L("询问 AI")
         case .outline: L("论文目录")
@@ -60,6 +61,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .undoAnnotation: "arrow.uturn.backward"
         case .redoAnnotation: "arrow.uturn.forward"
         case .exportAnnotated: "doc.badge.arrow.up"
+        case .relatedPapers: "point.3.connected.trianglepath.dotted"
         case .metadata: "info.circle"
         case .askAI: "sparkle"
         case .outline: "list.bullet.indent"
@@ -208,7 +210,7 @@ struct AppCommands: Commands {
             Button(L("关闭窗口")) { NSApp.keyWindow?.performClose(nil) }.keyboardShortcut("w")
         }
         CommandGroup(replacing: .saveItem) {
-            ForEach([CommandID.save, .newFolder, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .revealFiles]) { RegisteredCommandButton(registry: registry, id: $0) }
+            ForEach([CommandID.save, .newFolder, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .relatedPapers, .revealFiles]) { RegisteredCommandButton(registry: registry, id: $0) }
         }
         CommandGroup(replacing: .printItem) {
             Button(L("打印当前论文…")) { printPaper() }

@@ -5,30 +5,20 @@ import PaperCore
 struct AIComposer: View {
     @ObservedObject var ai: AIController
     var compact = true
+    @State private var configuring = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if compact {
-                HStack(spacing: 8) {
-                    AIConnectionControls(settings: ai.settings, generating: ai.generating)
-                    Spacer(minLength: 0)
-                    Button { ai.expanded = true } label: { Image(systemName: "sidebar.right") }
-                        .buttonStyle(WorkspaceIconStyle()).help(L("展开对话")).accessibilityIdentifier("ai.expand")
-                    Button { ai.visible = false } label: { Image(systemName: "xmark") }
-                        .buttonStyle(WorkspaceIconStyle()).help(L("关闭"))
-                }
                 if ai.error != nil { AIErrorBanner(ai: ai) }
                 else if !ai.generating, let answer = ai.messages.last(where: { $0.role == "assistant" }) {
                     Button { ai.expanded = true } label: {
                         Text((try? AttributedString(markdown: String(answer.content.prefix(600)), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(answer.content))
                             .font(Design.body).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).padding(.horizontal, 12).padding(.top, 8)
                 }
             }
             if ai.generating || !ai.status.isEmpty {
-                HStack(spacing: 8) {
-                    if ai.generating { ProgressView().controlSize(.small) }
-                    Text(ai.status.isEmpty ? L("正在回答…") : ai.status).font(Design.small).foregroundStyle(.secondary).lineLimit(2)
-                }
+                Text(ai.status.isEmpty ? L("正在回答…") : ai.status).font(Design.small).foregroundStyle(.secondary).lineLimit(2).padding(.horizontal, 12)
             }
             if let quote = ai.pendingQuote {
                 HStack(alignment: .top, spacing: 8) {
@@ -43,21 +33,63 @@ struct AIComposer: View {
                     .background(WorkspacePalette.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: Design.radius))
                     .accessibilityIdentifier("ai.quote")
             }
-            HStack(alignment: .bottom, spacing: 4) {
-                ChatInput(text: $ai.draft, quoteID: ai.pendingQuote?.id, submit: { ai.send() }, dismiss: { if compact { ai.visible = false } else { ai.expanded = false } })
-                    .frame(height: compact ? 70 : 92)
-                if ai.generating { Button { ai.cancel() } label: { Image(systemName: "stop.circle.fill") }.buttonStyle(WorkspaceIconStyle()).help(L("停止生成")) }
-                else { Button { ai.send() } label: {
-                    Image(systemName: "arrow.up").font(Design.body).foregroundStyle(.white).frame(width: 30, height: 30)
-                        .background(WorkspacePalette.accent, in: RoundedRectangle(cornerRadius: Design.radius))
-                }.buttonStyle(.plain).disabled(ai.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .help(L("发送问题")).accessibilityIdentifier("ai.send") }
-            }.padding(.trailing, 8).padding(.bottom, 8)
-                .background(WorkspacePalette.accent.opacity(0.035), in: RoundedRectangle(cornerRadius: Design.radius))
-                .overlay(RoundedRectangle(cornerRadius: Design.radius).strokeBorder(WorkspacePalette.accent.opacity(0.25), lineWidth: 1))
-            if compact { AIInputHint().frame(height: 20) }
-        }.padding(12).background(WorkspacePalette.chrome, in: RoundedRectangle(cornerRadius: compact ? 20 : Design.radius))
+            ChatInput(text: $ai.draft, quoteID: ai.pendingQuote?.id, submit: { ai.send() }, dismiss: { if compact { ai.visible = false } else { ai.expanded = false } })
+                .frame(height: compact ? 80 : 96)
+            HStack(spacing: 4) {
+                Menu {
+                    Button(L("引用论文选区")) { ai.askPDFSelection() }.disabled(ai.app?.reader.view.currentSelection?.string?.isEmpty != false)
+                    Button(L("引用当前笔记")) { Task { await ai.quoteCurrentNote() } }.disabled(ai.app?.activeNoteID == nil)
+                    Divider()
+                    Button(L("AI 连接设置")) { configuring = true }
+                    if compact {
+                        Button(L("展开对话")) { ai.expanded = true; ai.visible = false }.accessibilityIdentifier("ai.expand")
+                        Button(L("关闭")) { ai.visible = false }
+                    }
+                } label: { Image(systemName: "plus").font(Design.title).foregroundStyle(.primary).frame(width: 28, height: 32) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L("添加上下文"))
+                    .accessibilityIdentifier("ai.context")
+                AIConnectionControls(settings: ai.settings, generating: ai.generating).frame(maxWidth: .infinity)
+                AIFastModeButton(settings: ai.settings, generating: ai.generating)
+                Button { if ai.generating { ai.cancel() } else { ai.send() } } label: {
+                    Image(systemName: ai.generating ? "stop.fill" : "arrow.up").font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white).frame(width: 34, height: 34)
+                        .background(WorkspacePalette.accent, in: Circle())
+                }.buttonStyle(.plain).disabled(!ai.generating && ai.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help(ai.generating ? L("停止生成") : L("发送问题"))
+                    .accessibilityLabel(ai.generating ? L("停止生成") : L("发送问题"))
+                    .accessibilityIdentifier(ai.generating ? "ai.stop" : "ai.send")
+            }.padding(.horizontal, 8).padding(.bottom, 4)
+            AIConnectionStatus(settings: ai.settings)
+        }.padding(8).background(WorkspacePalette.paper, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.primary.opacity(0.10), lineWidth: 1))
             .frame(maxWidth: compact ? 600 : .infinity)
+            .sheet(isPresented: $configuring) {
+                VStack(spacing: 0) {
+                    HStack { Text(L("AI 连接设置")).font(Design.title); Spacer(); Button(L("完成")) { ai.settings.save(); configuring = false } }.padding(20)
+                    AISettingsView(settings: ai.settings)
+                }
+            }
+    }
+}
+private struct AIFastModeButton: View {
+    @ObservedObject var settings: AISettings
+    var generating: Bool
+    var body: some View {
+        if settings.supportsFastMode {
+            Button { settings.fastMode.toggle() } label: {
+                Image(systemName: settings.fastMode ? "bolt.fill" : "bolt").font(Design.body)
+                    .foregroundStyle(settings.fastMode ? WorkspacePalette.accent : Color.secondary).frame(width: 24, height: 30)
+            }.buttonStyle(.plain).disabled(generating).help(L("快速模式"))
+                .accessibilityLabel(L("快速模式")).accessibilityValue(settings.fastMode ? L("已开启") : L("已关闭"))
+                .accessibilityIdentifier("ai.fastMode")
+        }
+    }
+}
+private struct AIConnectionStatus: View {
+    @ObservedObject var settings: AISettings
+    var body: some View {
+        if settings.statusIsError { Text(settings.status).font(Design.small).foregroundStyle(.red).lineLimit(2).padding(.horizontal, 12).help(settings.status) }
+        else if settings.refreshing { ProgressView().controlSize(.small).padding(.horizontal, 12) }
     }
 }
 struct AIConversationView: View {
@@ -71,7 +103,6 @@ struct AIConversationView: View {
                 Button { ai.expanded = false } label: { Image(systemName: "chevron.right") }
                     .buttonStyle(WorkspaceIconStyle()).help(L("收起对话")).accessibilityIdentifier("ai.close")
             }.padding(.horizontal, 16).frame(height: Design.paneHeaderHeight)
-            AIConnectionControls(settings: ai.settings, generating: ai.generating).padding(.horizontal, 16).padding(.bottom, 8)
             ZStack {
                 AITranscriptView(messages: ai.messages, generating: ai.generating,
                                  onLink: { url in Task { await ai.app?.openLink(url) } }, onError: { renderingError = $0 },
@@ -96,7 +127,7 @@ struct AIConversationView: View {
             }
             if let renderingError { Text(renderingError).font(Design.small).foregroundStyle(.secondary).padding(.horizontal, 14) }
             if ai.error != nil { AIErrorBanner(ai: ai).padding(.horizontal, 12).padding(.top, 8) }
-            AIComposer(ai: ai, compact: false).padding(.horizontal, 4).padding(.top, 8)
+            AIComposer(ai: ai, compact: false).padding(.horizontal, 12).padding(.top, 8)
             AIInputHint().padding(.horizontal, 18).frame(height: Design.footerHeight)
         }.font(Design.body).background(WorkspacePalette.paper).frame(minWidth: Design.conversationMinimumWidth - 10, maxWidth: .infinity)
     }

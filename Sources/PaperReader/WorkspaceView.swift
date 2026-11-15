@@ -31,7 +31,7 @@ struct WorkspaceView: View {
                     Button { model.commands.run(.open) } label: { Image(systemName: "plus").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("导入 PDF"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
+                    Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .relatedPapers, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                     label: { Image(systemName: "square.and.arrow.up").foregroundStyle(WorkspacePalette.accent) }.menuIndicator(.hidden).help(L("笔记与文件"))
                 }
             }
@@ -47,6 +47,7 @@ struct WorkspaceView: View {
                 }
             } message: { Text(L(model.error ?? "")) }
             .sheet(item: $model.libraryNameRequest) { request in LibraryNameSheet(model: model, request: request) }
+            .sheet(isPresented: $model.relatedPapersPresented) { RelatedPapersView(model: model) }
             .sheet(isPresented: $model.metadataPresented) { MetadataPanel(model: model) }
     }
 }
@@ -250,7 +251,7 @@ private struct ReaderPane: View {
             if compact {
                 Menu {
                     Button(L("搜索原文")) { showSearch.toggle() }
-                    ForEach([CommandID.previousPage, .nextPage, .quote, .zoomIn, .zoomOut, .fit, .outline, .metadata]) { RegisteredCommandButton(registry: model.commands, id: $0) }
+                    ForEach([CommandID.previousPage, .nextPage, .quote, .zoomIn, .zoomOut, .fit, .outline, .metadata, .relatedPapers]) { RegisteredCommandButton(registry: model.commands, id: $0) }
                 }
                 label: { Image(systemName: "ellipsis").frame(width: 30, height: 30) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             }
@@ -374,5 +375,5 @@ private extension View {
 }
 
 @MainActor private final class WorkspaceDivider: NSSplitView {
-    override var dividerColor: NSColor { WorkspacePalette.chromeNS }
+    override var dividerColor: NSColor { WorkspacePalette.dividerNS }
 }

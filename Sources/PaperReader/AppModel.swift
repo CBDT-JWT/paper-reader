@@ -45,6 +45,9 @@ import PaperCore
     @Published var workspaceNoteURL: URL?
     @Published var folders: [LibraryFolder] = []
     @Published var metadataPresented = false
+    @Published var relatedPapersPresented = false
+    @Published var venueStatus: [UUID: String] = [:]
+    lazy var venueEnrichment = VenueEnrichmentCoordinator(app: self)
     @Published var metadataCandidates: [UUID: Bibliography] = [:]
     private var externalWatcher: Task<Void, Never>?
     @Published var papers: [Paper] = []
@@ -89,6 +92,7 @@ import PaperCore
         editor.onLink = { [weak self] url in Task { await self?.openLink(url) } }
         editor.onError = { [weak self] in self?.error = $0 }
         ai.app = self; reader.annotations.store = store
+        ai.settings.onConnectionChange = { [weak self] in guard let self else { return }; self.venueEnrichment.connectionChanged() }
         reader.annotations.onError = { [weak self] in self?.error = $0 }
     }
     func start() async {
@@ -108,6 +112,7 @@ import PaperCore
             let previous = UserDefaults.standard.string(forKey: "lastPaper").flatMap(UUID.init(uuidString:))
             if let id = papers.first(where: { $0.id == previous })?.id ?? papers.first?.id { await select(id) }
             else if store.hasSharedNote { await openSharedNote() }
+            venueEnrichment.enqueue(papers.map(\.id))
         } catch { self.error = error.localizedDescription }
     }
     func select(_ id: UUID) async {
@@ -189,7 +194,7 @@ import PaperCore
                 guard valid else { throw LibraryError.invalidPDF }
                 let paper = try await store.importPDF(from: url, folderID: folderID)
                 papers.insert(paper, at: 0); imported.append(paper); await select(paper.id)
-                Task { await self.lookupMetadata(paperID: paper.id) }
+                venueEnrichment.enqueue([paper.id])
             } catch { self.error = error.localizedDescription }
         }
         return imported
@@ -545,7 +550,7 @@ import PaperCore
         guard !isChangingWorkspace else { return }
         if runResearchCommand(command) { return }
         switch command {
-        case .newFolder, .focus, .focusAutomatic, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .askAI, .outline, .noteWindow: break
+        case .newFolder, .focus, .focusAutomatic, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .relatedPapers, .askAI, .outline, .noteWindow: break
         case .open: openPanel()
         case .openFolder: openWorkspaceAction?()
         case .demo: Task { await openDemo() }
@@ -578,7 +583,7 @@ import PaperCore
             }
             let groups = try await store.folders()
             guard !isChangingWorkspace else { return }
-            if papers != updated { papers = updated }
+            if papers != updated { papers = updated; venueEnrichment.enqueue(updated.map(\.id)) }
             if folders != groups { folders = groups }
             if let id = selectedID, !updated.contains(where: { $0.id == id }) {
                 await save(); selectedID = nil; commands.hasPaper = false

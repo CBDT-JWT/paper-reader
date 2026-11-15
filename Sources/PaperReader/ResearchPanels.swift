@@ -13,7 +13,7 @@ struct MetadataPanel: View {
     @State private var error = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack { Text(L("文献信息")).font(.system(size: 20, weight: .semibold)); Spacer(); Text(value.origin == "manual" ? L("手动录入") : value.origin).font(.system(size: 12)).foregroundStyle(.secondary) }
+            HStack { Text(L("文献信息")).font(.system(size: 20, weight: .semibold)); Spacer(); Text(sourceName).font(.system(size: 12)).foregroundStyle(.secondary) }
             Form {
                 TextField(L("标题"), text: $value.title)
                 TextField(L("作者（分号分隔）"), text: $authors)
@@ -24,6 +24,12 @@ struct MetadataPanel: View {
                 HStack { TextField(L("卷"), text: $value.volume); TextField(L("期"), text: $value.issue); TextField(L("页码"), text: $value.pages) }
                 TextField(L("类型"), text: $value.kind)
             }.textFieldStyle(.roundedBorder)
+            HStack {
+                Button(L("AI 识别期刊 / 会议")) { if let id = model.selectedID { model.venueEnrichment.enqueue([id], force: true) } }
+                    .disabled(!model.ai.settings.configuration.isAvailable)
+                if let id = model.selectedID { Text(model.venueStatus[id] ?? "").font(Design.small).foregroundStyle(.secondary).lineLimit(2) }
+            }
+            if let evidence = model.currentPaper?.metadata?.venueEvidence { Text(evidence).font(Design.small).foregroundStyle(.secondary).textSelection(.enabled) }
             Text(L("摘要")).font(.system(size: 12)).foregroundStyle(.secondary)
             TextEditor(text: $value.abstract).frame(height: 100).padding(6).background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
             if !error.isEmpty { Text(L(error)).font(.system(size: 12)).foregroundStyle(.red) }
@@ -32,9 +38,25 @@ struct MetadataPanel: View {
                 Spacer(); Button(L("取消")) { dismiss() }; Button(L("保存")) { updateFields(); Task { await model.updateMetadata(value); dismiss() } }.buttonStyle(.borderedProminent)
             }
         }.font(.system(size: 14)).padding(24).frame(width: 660)
+        .onChange(of: model.currentPaper?.metadata) { old, metadata in
+            guard let metadata, value.venue == (old?.venue ?? "") else { return }
+            value.venue = metadata.venue; value.venueShortName = metadata.venueShortName; value.venueYear = metadata.venueYear
+            value.venueEvidence = metadata.venueEvidence; value.venueOrigin = metadata.venueOrigin
+            if year == (old?.year.map(String.init) ?? "") { year = metadata.year.map(String.init) ?? "" }
+        }
         .onAppear { value = model.currentPaper?.metadata ?? model.selectedID.flatMap { model.metadataCandidates[$0] } ?? Bibliography(title: model.currentPaper?.title ?? ""); authors = value.authors.joined(separator: "; "); year = value.year.map(String.init) ?? "" }
     }
-    private func updateFields() { value.authors = authors.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }; value.year = Int(year) }
+    private var sourceName: String {
+        let source = value.venueOrigin ?? value.origin
+        return source == "manual" ? L("手动录入") : source
+    }
+    private func updateFields() {
+        value.authors = authors.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }; value.year = Int(year)
+        if value.year != model.currentPaper?.metadata?.year { value.venueYear = value.year }
+        if value.venue != model.currentPaper?.metadata?.venue {
+            value.venueShortName = nil; value.venueYear = value.year; value.venueEvidence = nil; value.venueOrigin = "manual"
+        }
+    }
     private func lookup() async {
         loading = true; defer { loading = false }
         do { value = value.doi.isEmpty ? try await MetadataService.fetchArxiv(id: value.arxivID ?? "") : try await MetadataService.fetch(doi: value.doi); authors = value.authors.joined(separator: "; "); year = value.year.map(String.init) ?? ""; error = "" }

@@ -74,9 +74,10 @@ extension AppModel {
     }
     func lookupMetadata(paperID: UUID? = nil) async {
         guard !isChangingWorkspace, let id = paperID ?? selectedID else { return }
+        let previous = papers.first(where: { $0.id == id })?.metadata
         do {
             let url = store.pdfURL(id)
-            let pages = try await Task.detached { try PDFServices.text(url: url) }.value
+            let pages = try await Task.detached { try PDFServices.text(url: url, pageLimit: 3) }.value
             let text = pages.prefix(3).map(\.text).joined(separator: "\n")
             let doi = MetadataService.doi(in: text)
             let arxiv = MetadataService.arxivID(in: text)
@@ -84,7 +85,7 @@ extension AppModel {
             if let doi { metadata = try await MetadataService.fetch(doi: doi) }
             else if let arxiv { metadata = try await MetadataService.fetchArxiv(id: arxiv) }
             else { if selectedID == id { status = L("未检测到 DOI 或 arXiv ID，可手动填写文献信息。") }; return }
-            guard !isChangingWorkspace, let index = papers.firstIndex(where: { $0.id == id }) else { return }
+            guard !isChangingWorkspace, let index = papers.firstIndex(where: { $0.id == id }), papers[index].metadata == previous else { return }
             let header = pages.first?.text.components(separatedBy: "\n").prefix(20).joined(separator: " ") ?? ""
             let normalized: (String) -> String = { $0.lowercased().filter { $0.isLetter || $0.isNumber } }
             let family = metadata.authors.first?.split(separator: ",").first.map(String.init) ?? ""
@@ -92,7 +93,8 @@ extension AppModel {
                 metadataCandidates[id] = metadata
                 if selectedID == id { status = L("找到候选文献，请在文献信息中确认。") }; return
             }
-            papers[index].metadata = metadata; let value = papers[index]; try await store.persistMetadata(value.id, metadata: metadata)
+            guard try await store.persistMetadata(id, metadata: metadata, expecting: previous) else { return }
+            if let current = papers.firstIndex(where: { $0.id == id }), papers[current].metadata == previous { papers[current].metadata = metadata }
             if selectedID == id { status = L("文献信息已更新") }
         } catch { status = error.localizedDescription }
     }
@@ -115,6 +117,7 @@ extension AppModel {
         case .undoAnnotation: reader.annotations.undo()
         case .redoAnnotation: reader.annotations.redo()
         case .exportAnnotated: exportAnnotations()
+        case .relatedPapers: relatedPapersPresented = true
         case .metadata: metadataPresented = true
         case .askAI:
             if reader.view.currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { ai.askPDFSelection() }

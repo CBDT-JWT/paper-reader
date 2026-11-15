@@ -43,8 +43,8 @@ struct NativeLibraryOutline: NSViewRepresentable {
         private var roots: [Item] = []
         private var items: [UUID: Item] = [:]
         private struct PaperRow: Equatable {
-            let id: UUID; let title: String; let filename: String; let folder: UUID?; let year: Int?; let imported: Date
-            init(_ paper: Paper) { id = paper.id; title = paper.title; filename = paper.displayFileName; folder = paper.folderID; year = paper.metadata?.year; imported = paper.importedAt }
+            let id: UUID; let title: String; let filename: String; let folder: UUID?; let year: Int?; let imported: Date; let venue: String?
+            init(_ paper: Paper) { id = paper.id; title = paper.title; filename = paper.displayFileName; folder = paper.folderID; year = paper.metadata?.year; imported = paper.importedAt; venue = paper.metadata.map { "\($0.venue)|\($0.venueShortName ?? "")|\($0.venueYear ?? 0)" } }
         }
         private var paperRows: [PaperRow] = []
         private var dragging = false
@@ -122,7 +122,10 @@ struct NativeLibraryOutline: NSViewRepresentable {
             guard let item = item as? Item else { return nil }
             let view = LibraryCellView()
             view.title.stringValue = item.note?.lastPathComponent ?? item.folder?.name ?? item.paper?.title ?? ""
-            view.detail.stringValue = item.paper?.metadata?.year.map(String.init) ?? (item.paper == nil ? "" : "PDF")
+            view.detail.stringValue = item.paper == nil ? "" : "PDF"
+            view.venue.stringValue = PublicationVenue.label(item.paper?.metadata) ?? ""
+            view.venue.isHidden = view.venue.stringValue.isEmpty
+            view.venue.toolTip = item.paper?.metadata?.venue
             view.detail.isHidden = item.paper == nil
             view.icon.image = NSImage(systemSymbolName: item.note != nil ? "doc.text" : item.folder != nil ? "folder" : "doc.richtext", accessibilityDescription: nil)
             view.normalIconColor = item.note != nil ? WorkspacePalette.amberNS : WorkspacePalette.accentNS
@@ -191,6 +194,8 @@ struct NativeLibraryOutline: NSViewRepresentable {
                 menu.addItem(action(L("重命名…")) { [model] in model.renameFolder(folder) })
             } else if let paper = item.paper {
                 menu.addItem(action(L("打开论文")) { [model] in Task { await model.select(paper.id) } })
+                menu.addItem(action(L("关联文献…")) { [model] in Task { await model.select(paper.id); model.commands.run(.relatedPapers) } })
+                menu.addItem(action(L("AI 识别期刊 / 会议")) { [model] in model.venueEnrichment.enqueue([paper.id], force: true) })
                 menu.addItem(action(L("重命名…")) { [model] in model.rename(paper) })
             }
             let destinations = NSMenu(); let move = NSMenuItem(title: L("移动至"), action: nil, keyEquivalent: ""); move.submenu = destinations
@@ -226,6 +231,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
 @MainActor private final class LibraryCellView: NSTableCellView {
     let title = NSTextField(labelWithString: "")
     let detail = NSTextField(labelWithString: "")
+    let venue = VenueCapsule()
     let icon = NSImageView()
     var normalIconColor = WorkspacePalette.accentNS { didSet { updateColors() } }
     override var backgroundStyle: NSView.BackgroundStyle { didSet { updateColors() } }
@@ -238,8 +244,10 @@ struct NativeLibraryOutline: NSViewRepresentable {
         super.init(frame: frameRect)
         title.font = .systemFont(ofSize: 14); title.lineBreakMode = .byTruncatingMiddle
         detail.font = .systemFont(ofSize: 12); detail.textColor = .secondaryLabelColor
+        venue.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         icon.imageScaling = .scaleProportionallyDown
-        let labels = NSStackView(views: [title, detail]); labels.orientation = .vertical; labels.alignment = .leading; labels.spacing = 3
+        let details = NSStackView(views: [detail, venue]); details.spacing = 6; details.alignment = .centerY
+        let labels = NSStackView(views: [title, details]); labels.orientation = .vertical; labels.alignment = .leading; labels.spacing = 3
         let row = NSStackView(views: [icon, labels]); row.spacing = 8; row.alignment = .centerY; row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row); imageView = icon; textField = title
         NSLayoutConstraint.activate([icon.widthAnchor.constraint(equalToConstant: 18), icon.heightAnchor.constraint(equalToConstant: 18), row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4), row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), row.centerYAnchor.constraint(equalTo: centerYAnchor)])
@@ -255,4 +263,25 @@ struct NativeLibraryOutline: NSViewRepresentable {
         NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: Design.radius, yRadius: Design.radius).fill()
     }
     override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+}
+
+@MainActor private final class VenueCapsule: NSTextField {
+    init() {
+        super.init(frame: .zero)
+        isEditable = false; isSelectable = false; isBordered = false; drawsBackground = false
+        font = .systemFont(ofSize: 12, weight: .medium)
+        textColor = WorkspacePalette.accentNS
+        lineBreakMode = .byTruncatingTail
+    }
+    required init?(coder: NSCoder) { nil }
+    override var intrinsicContentSize: NSSize {
+        let size = super.intrinsicContentSize
+        return NSSize(width: min(150, size.width + 12), height: 20)
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        WorkspacePalette.accentNS.withAlphaComponent(0.09).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: bounds.height / 2, yRadius: bounds.height / 2).fill()
+        let textRect = bounds.insetBy(dx: 6, dy: 2)
+        cell?.drawInterior(withFrame: textRect, in: self)
+    }
 }

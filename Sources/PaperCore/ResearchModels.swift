@@ -39,6 +39,10 @@ public struct Bibliography: Codable, Equatable, Sendable {
     public var kind: String
     public var origin: String
     public var arxivID: String?
+    public var venueShortName: String?
+    public var venueYear: Int?
+    public var venueEvidence: String?
+    public var venueOrigin: String?
     public init(title: String = "", authors: [String] = [], year: Int? = nil, venue: String = "", doi: String = "", abstract: String = "", volume: String = "", issue: String = "", pages: String = "", kind: String = "article", origin: String = "manual") {
         self.title = title; self.authors = authors; self.year = year; self.venue = venue; self.doi = doi; self.abstract = abstract
         self.volume = volume; self.issue = issue; self.pages = pages; self.kind = kind; self.origin = origin

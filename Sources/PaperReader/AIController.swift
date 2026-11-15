@@ -68,6 +68,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
     var supportsFastMode: Bool { backend == .codex || backend == .claudeCode }
     @Published var allowWeb: Bool
     @Published var key = "" { didSet { if key != oldValue { invalidateModels() } } }
+    var onConnectionChange: (() -> Void)?
     private var originalKey: String?
     @Published var status = ""
     @Published var models: [String] = []
@@ -150,6 +151,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
             if usesKeychain, originalKey != key, originalKey != nil || !key.isEmpty { try KeychainSecret.write(key); originalKey = key }
             for (name, value) in [("ai.backend", backend.rawValue), ("ai.model", model), ("ai.endpoint", endpoint), ("ai.codexPath", codexPath)] { preferences.set(value, forKey: name) }
             preferences.set(allowWeb, forKey: "ai.web"); status = L("设置已保存"); statusIsError = false
+            onConnectionChange?()
         } catch { status = error.localizedDescription; statusIsError = true }
     }
 }
@@ -236,6 +238,14 @@ struct NoteProposal: Identifiable {
             } catch { self.error = error.localizedDescription }
         }
     }
+    func quoteCurrentNote() async {
+        guard let app, let id = paperID, app.activeNoteID != nil else { return }
+        do {
+            let text = try await app.editor.call("getMarkdown") as? String ?? ""
+            guard paperID == id, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            pendingQuote = AIQuote(text: String(text.prefix(12000)), label: L("当前笔记"))
+        } catch { self.error = error.localizedDescription }
+    }
     func selectReply(_ text: String, messageID: UUID, excerpt: Bool) {
         guard let id = paperID, messages.contains(where: { $0.id == messageID && $0.role == "assistant" }) else { return }
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -286,19 +296,7 @@ struct NoteProposal: Identifiable {
                     guard tools.contains(where: { $0.name == call.name }) else { throw AIError.message(L("工具未获授权。")) }
                     return try await self.handle(call, id: id, pages: pages, note: note, selection: selection, currentPage: selectedPage, metadata: metadata)
                 }
-                let provider: any AIProvider
-                if configuration.backend == .codex {
-                    let cwd = FileManager.default.temporaryDirectory.appendingPathComponent("PaperReader-AI", isDirectory: true)
-                    try FileManager.default.createDirectory(at: cwd, withIntermediateDirectories: true)
-                    provider = CodexAIProvider(executable: configuration.codexPath, model: configuration.model, cwd: cwd, effort: configuration.effort, fastMode: configuration.fastMode)
-                } else if configuration.backend == .claudeCode {
-                    provider = ClaudeCodeProvider(executable: configuration.agentPath, model: configuration.model, effort: configuration.effort, fastMode: configuration.fastMode)
-                } else if configuration.backend.usesACP {
-                    provider = ACPAgentProvider(executable: configuration.agentPath, backend: configuration.backend, model: configuration.model, selections: configuration.agentSelections)
-                } else {
-                    guard let base = URL(string: configuration.endpoint) else { throw AIError.message(L("无效的模型服务地址。")) }
-                    provider = CloudAIProvider(baseURL: base, model: configuration.model, key: configuration.backend == .cloud ? configuration.key : "", reasoningEffort: configuration.effort)
-                }
+                let provider = try configuration.makeProvider()
                 for try await event in provider.stream(request) {
                     try Task.checkCancellation()
                     switch event {

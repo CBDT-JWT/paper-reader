@@ -4,9 +4,9 @@ import PaperCore
 
 struct PaperPageText: Codable, Sendable { let page: Int; let text: String }
 enum PDFServices {
-    static func text(url: URL) throws -> [PaperPageText] {
+    static func text(url: URL, pageLimit: Int? = nil) throws -> [PaperPageText] {
         guard let document = PDFDocument(url: url) else { throw LibraryError.invalidPDF }
-        return (0..<document.pageCount).map { .init(page: $0, text: document.page(at: $0)?.string ?? "") }
+        return (0..<min(document.pageCount, max(0, pageLimit ?? document.pageCount))).map { .init(page: $0, text: document.page(at: $0)?.string ?? "") }
     }
     static func pageImage(url: URL, page index: Int) throws -> Data {
         guard let document = CGPDFDocument(url as CFURL), let page = document.page(at: index + 1) else { throw LibraryError.invalidPDF }

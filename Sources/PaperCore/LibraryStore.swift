@@ -303,14 +303,14 @@ public actor LibraryStore {
         annotationBaselines[id] = saved
     }
     public func readSidecar(_ id: UUID, name: String) throws -> Data? {
-        guard ["conversation.json"].contains(name) else { throw LibraryError.invalidPath }
+        guard ["conversation.json", "related-papers.json"].contains(name) else { throw LibraryError.invalidPath }
         let local = deviceDirectory.appendingPathComponent(id.uuidString + "." + name)
         if FileManager.default.fileExists(atPath: local.path) { return try Data(contentsOf: local) }
         let legacy = directory(id).appendingPathComponent(name)
         return FileManager.default.fileExists(atPath: legacy.path) ? try CoordinatedFiles.read(legacy) : nil
     }
     public func saveSidecar(_ id: UUID, name: String, data: Data) throws {
-        guard ["conversation.json"].contains(name) else { throw LibraryError.invalidPath }
+        guard ["conversation.json", "related-papers.json"].contains(name) else { throw LibraryError.invalidPath }
         try data.write(to: deviceDirectory.appendingPathComponent(id.uuidString + "." + name), options: .atomic)
     }
 

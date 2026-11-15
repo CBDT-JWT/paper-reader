@@ -1,6 +1,8 @@
 # Paper Reader
 
-macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.13 发行版**，包含 Phase 1 技术验证及 Phase 2–4 的核心实现，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+macOS 原生论文阅读与 Markdown 笔记工作台，SwiftUI / AppKit / PDFKit / 离线 Tiptap。当前为 **0.4.14 发行版**，包含 Phase 1 技术验证及 Phase 2–4 的核心实现，可构建、运行、编辑、保存和导出。高级功能的边界和未验收范围列在文末。
+
+0.4.14 按参考图重排 AI 输入区，白色圆角面板内采用上方输入、下方加号 / 模型与思考强度 / 快速模式 / 圆形发送或停止按钮。分栏之间增加细蓝线。文件树在 PDF 右侧显示期刊或会议胶囊，例如 DAC2024。缺失来源在后台读取 Crossref / arXiv 元数据，已配置 AI 时进一步识别 PDF 中的出版信息，保存页码和原文依据。文件树右键的“关联文献…”打开 OpenAlex 交互文献图，可拖动、缩放、查看引用 / 相关关系及共同参考文献，并切换中心论文。详见 [关联文献与来源信息](docs/LITERATURE_GRAPH.md)。按用户要求跳过功能和界面测试，本轮仅执行编译、打包及分发检查。
 
 0.4.13 将文件树选中行改为浅蓝底和系统深色文字，窗口顶栏移除左右侧栏按钮，笔记和对话标题各自提供收起按钮。AI 提供方增加 Claude Code、Qwen Code、DeepSeek Harness 和 WorkBuddy（CodeBuddy ACP 后端），可在对话栏调整思考强度、快速模式，以及 Agent 实际返回的推理选项。按本轮用户要求跳过功能和界面测试，仅完成编译与打包检查。新 Agent 的真实登录、推理及权限往返尚未验证。配置与协议说明见 [Agent 接入说明](docs/AGENT_PROVIDERS.md)。
 

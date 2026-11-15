@@ -18,7 +18,10 @@ import PaperCore
             await model.flush()
             let output = model.store.root.deletingLastPathComponent().appendingPathComponent("AIExport", isDirectory: true)
             try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-            if ProcessInfo.processInfo.arguments.contains("--layout-self-test") {
+            if ProcessInfo.processInfo.arguments.contains("--markdown-self-test") {
+                report["scope"] = "markdown-input"
+                report["checks"] = try await MarkdownInputSelfTest.run(model: model)
+            } else if ProcessInfo.processInfo.arguments.contains("--layout-self-test") {
                 report["scope"] = "workspace-layout"
                 report["checks"] = try await WorkspaceLayoutSelfTest.run(model: model, output: output)
             } else {

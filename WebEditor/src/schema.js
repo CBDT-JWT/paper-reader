@@ -1,24 +1,25 @@
 import { t } from './localization.js'
 import { Editor, Extension } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
-import { Mathematics } from '@tiptap/extension-mathematics'
-import Highlight from '@tiptap/extension-highlight'
+import { NoteStarterKit, NoteMathematics, NoteHighlight } from './live-markdown.js'
 import { ResearchImage } from './research-image.js'
 import { DiagramCodeBlock } from './diagram.js'
 import { TableKit } from '@tiptap/extension-table'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { NoteOrderedList } from './ordered-list.js'
+import { MarkdownPaste } from './markdown-paste.js'
+export { validateMarkdown, canonicalDocument } from './markdown-validation.js'
 
 export function extensions(onMath = () => {}) {
   return [
-    StarterKit.configure({codeBlock: false, orderedList: false, link: {openOnClick: false, protocols: ['paperreader']}}),
+    NoteStarterKit.configure({codeBlock: false, orderedList: false, link: {openOnClick: false, protocols: ['paperreader']}}),
     NoteOrderedList,
     Markdown.configure({indentation: {style: 'space', size: 2}}),
-    Highlight, ResearchImage, DiagramCodeBlock,
+    MarkdownPaste,
+    NoteHighlight, ResearchImage, DiagramCodeBlock,
     TableKit.configure({table: {resizable: false}}), TaskList, TaskItem.configure({nested: true, a11y: {checkboxLabel: node => `${t('任务')}: ${node.textContent || t('空白任务')}`}}),
-    Mathematics.configure({
+    NoteMathematics.configure({
       katexOptions: {throwOnError: false, trust: false, strict: 'warn'},
       inlineOptions: {onClick: (node, pos) => onMath(node, pos, false)},
       blockOptions: {onClick: (node, pos) => onMath(node, pos, true)},
@@ -35,29 +36,7 @@ export function extensions(onMath = () => {}) {
   ]
 }
 
-// Fail closed on syntax we cannot represent; caller retains original .md untouched.
-export function validateMarkdown(editor, markdown) {
-  const prose = markdown.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, '').replace(/(`+)[\s\S]*?\1/g, '')
-  if (/^---\s*\n/.test(markdown) || /<\/?[A-Za-z][^>]*>/.test(prose) || /^\[\^.+?\]:/m.test(prose)) {
-    throw new Error(t('暂不支持 YAML、原始 HTML 或脚注。原文件保持完整，请先转换这些语法。'))
-  }
-  const parsed = editor.markdown.parse(markdown)
-  const serialized = editor.markdown.serialize(parsed)
-  const reparsed = editor.markdown.parse(serialized)
-  if (JSON.stringify(canonicalDocument(parsed)) !== JSON.stringify(canonicalDocument(reparsed))) {
-    throw new Error(t('这份 Markdown 无法安全往返转换。原文件保持完整，请使用其他编辑器处理。'))
-  }
-  return parsed
-}
-
 export function createEditor(element, options = {}) {
   return new Editor({element, extensions: extensions(options.onMath), content: '',
     editorProps: {attributes: {'aria-label': t('论文 Markdown 笔记'), spellcheck: 'false'}}, ...options})
-}
-
-// Markdown has no representation for an editor-only empty trailing paragraph.
-export function canonicalDocument(json) {
-  const copy = structuredClone(json)
-  while (copy.content?.at(-1)?.type === 'paragraph' && !copy.content.at(-1).content?.length) copy.content.pop()
-  return copy
 }

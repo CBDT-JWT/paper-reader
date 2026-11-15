@@ -34,7 +34,7 @@ def key_for(literal):
     try:return json.loads('"'+out+'"')
     except:return out
 for path in list((root/'Sources/PaperReader').glob('*.swift'))+list((root/'Sources/PaperCore').glob('*.swift')):
-    if path.name in ['Localization.swift','IntegrationSelfTest.swift']:continue
+    if path.name in ['Localization.swift','IntegrationSelfTest.swift','MarkdownInputSelfTest.swift']:continue
     text=path.read_text();result='';i=0;changed=False
     while i<len(text):
         if text.startswith('//',i):

@@ -5,6 +5,7 @@ import PaperCore
 @main enum ApplicationEntry {
     @MainActor static func main() {
         let arguments = ProcessInfo.processInfo.arguments
+        if arguments.count == 2, arguments[1] == "--research-mcp" { exit(ResearchMCPBridge.runHelper()) }
         if arguments.count == 4, arguments[1] == "--verify-workspace-bookmark" {
             do {
                 let bookmark = try Data(contentsOf: URL(fileURLWithPath: arguments[2]))

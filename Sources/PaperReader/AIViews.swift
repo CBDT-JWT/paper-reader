@@ -68,7 +68,7 @@ struct AIConversationView: View {
             HStack(spacing: 8) {
                 Label(L("论文对话"), systemImage: "bubble.left.and.text.bubble.right").font(Design.body).fontWeight(.medium)
                 Spacer(minLength: 0)
-                Button { ai.expanded = false } label: { Image(systemName: "xmark") }
+                Button { ai.expanded = false } label: { Image(systemName: "chevron.right") }
                     .buttonStyle(WorkspaceIconStyle()).help(L("收起对话")).accessibilityIdentifier("ai.close")
             }.padding(.horizontal, 16).frame(height: Design.paneHeaderHeight)
             AIConnectionControls(settings: ai.settings, generating: ai.generating).padding(.horizontal, 16).padding(.bottom, 8)
@@ -128,20 +128,26 @@ struct AISettingsView: View {
             if settings.backend == .codex {
                 TextField(L("Codex 路径"), text: $settings.codexPath)
                 Text(L("使用本机 Codex 登录；模型推理可能在云端。Shell、文件写入和外部插件不向 AI 开放。")).font(.system(size: 12)).foregroundStyle(.secondary)
+            } else if settings.backend.usesCLI {
+                TextField(L("Agent 程序路径"), text: $settings.agentPath)
+                Text(L("使用 Agent 自身的登录配置。请先在终端完成登录。需要已安装的 CLI，并支持当前协议。")).font(Design.small).foregroundStyle(.secondary)
+                if settings.backend == .workBuddy { Text(L("WorkBuddy 使用 CodeBuddy ACP 后端，请选择 codebuddy 程序路径。")).font(Design.small).foregroundStyle(.secondary) }
             } else { TextField(L("API 基础地址"), text: $settings.endpoint); if settings.backend == .cloud { SecureField(L("API 密钥"), text: $settings.key) } }
             HStack {
-                TextField(L("模型（Codex 可留空）"), text: $settings.model)
+                TextField(L("模型（CLI 可留空）"), text: $settings.model)
                 Menu(L("选择模型")) {
-                    if settings.backend == .codex { Button(L("使用默认模型")) { settings.model = "" } }
+                    if settings.backend.usesCLI { Button(L("使用默认模型")) { settings.model = "" } }
                     ForEach(settings.models, id: \.self) { name in Button(name) { settings.model = name } }
                 }.disabled(settings.models.isEmpty)
                 Button(L("读取模型")) { Task { await settings.refreshModels() } }.disabled(settings.refreshing)
             }
+            AIResponseOptions(settings: settings)
+            Text(L("思考强度和快速模式的可用性取决于当前模型与账号。ACP 选项由 Agent 实际返回。API 使用 reasoning_effort 参数。留空沿用服务默认设置。")).font(Design.small).foregroundStyle(.secondary)
             Text(L("公式与图表识别需要支持视觉的模型。")).font(.system(size: 12)).foregroundStyle(.secondary)
             Toggle(L("允许外部学术检索"), isOn: $settings.allowWeb)
             Text(L("联网检索使用 Crossref 的真实出版物信息。笔记修改始终需要差异确认。API Key 仅保存在 macOS Keychain。")).font(.system(size: 12)).foregroundStyle(.secondary)
             HStack { if settings.refreshing { ProgressView().controlSize(.small) }; Text(settings.status).font(Design.small).foregroundStyle(settings.statusIsError ? Color.red : Color.secondary); Spacer(); Button(L("保存设置")) { settings.save() }.buttonStyle(.borderedProminent) }
-        }.textFieldStyle(.roundedBorder).font(.system(size: 14)).padding(24).frame(width: 760, height: 460)
+        }.textFieldStyle(.roundedBorder).font(.system(size: 14)).padding(24).frame(width: 760, height: 580)
     }
 }
 

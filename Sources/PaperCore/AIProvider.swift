@@ -83,7 +83,8 @@ public struct CloudAIProvider: AIProvider {
     public let baseURL: URL
     public let model: String
     private let key: String
-    public init(baseURL: URL, model: String, key: String) { self.baseURL = baseURL; self.model = model; self.key = key }
+    private let reasoningEffort: String
+    public init(baseURL: URL, model: String, key: String, reasoningEffort: String = "") { self.baseURL = baseURL; self.model = model; self.key = key; self.reasoningEffort = reasoningEffort }
     public func stream(_ request: AIRequest) -> AsyncThrowingStream<AIEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -103,6 +104,7 @@ public struct CloudAIProvider: AIProvider {
         for _ in 0..<10 {
             try Task.checkCancellation()
             var body: [String: JSONValue] = ["model": .string(model), "messages": .array(messages), "stream": .bool(true)]
+            if !reasoningEffort.isEmpty { body["reasoning_effort"] = .string(reasoningEffort) }
             if !request.tools.isEmpty { body["tools"] = .array(request.tools.map { .object(["type": .string("function"), "function": .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.schema])]) }) }
             var call = URLRequest(url: baseURL.appendingPathComponent("chat/completions")); call.httpMethod = "POST"; call.timeoutInterval = 180
             call.setValue("application/json", forHTTPHeaderField: "Content-Type"); call.setValue("text/event-stream", forHTTPHeaderField: "Accept")

@@ -3,8 +3,20 @@ import Combine
 import Security
 import PaperCore
 
-enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud, localHTTP; var id: String { rawValue }
-    var title: String { switch self { case .codex: "Codex App Server"; case .cloud: L("云端 API"); case .localHTTP: L("本地 HTTP 模型") } }
+enum AIBackend: String, CaseIterable, Identifiable, Sendable {
+    case codex, claudeCode, qwenCode, deepseekHarness, workBuddy, cloud, localHTTP
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .codex: "Codex App Server"
+        case .claudeCode: "Claude Code"
+        case .qwenCode: "Qwen Code"
+        case .deepseekHarness: "DeepSeek Harness"
+        case .workBuddy: "WorkBuddy"
+        case .cloud: L("云端 API")
+        case .localHTTP: L("本地 HTTP 模型")
+        }
+    }
 }
 @MainActor final class AISettings: ObservableObject {
     private let preferences: UserDefaults
@@ -17,11 +29,21 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
             preferences.set(endpoint, forKey: "ai.endpoint.\(oldValue.rawValue)")
             model = preferences.string(forKey: "ai.model.\(backend.rawValue)") ?? ""
             endpoint = preferences.string(forKey: "ai.endpoint.\(backend.rawValue)") ?? (backend == .localHTTP ? "http://127.0.0.1:11434/v1" : "https://api.openai.com/v1")
+            agentPath = preferences.string(forKey: "ai.path.\(backend.rawValue)") ?? backend.defaultExecutable
+            effort = preferences.string(forKey: "ai.effort.\(backend.rawValue)") ?? ""
+            fastMode = preferences.bool(forKey: "ai.fast.\(backend.rawValue)")
+            agentSelections = preferences.dictionary(forKey: "ai.options.\(backend.rawValue)") as? [String: String] ?? [:]
+            agentOptions = []
             preferences.set(backend.rawValue, forKey: "ai.backend")
             invalidateModels()
         }
     }
-    @Published var model: String { didSet { preferences.set(model, forKey: "ai.model.\(backend.rawValue)") } }
+    @Published var model: String {
+        didSet {
+            preferences.set(model, forKey: "ai.model.\(backend.rawValue)")
+            if model != oldValue, backend.usesACP { invalidateModels(); agentOptions = [] }
+        }
+    }
     @Published var endpoint: String {
         didSet {
             preferences.set(endpoint, forKey: "ai.endpoint.\(backend.rawValue)")
@@ -29,6 +51,21 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
         }
     }
     @Published var codexPath: String { didSet { if codexPath != oldValue { invalidateModels() } } }
+    @Published var agentPath: String { didSet { preferences.set(agentPath, forKey: "ai.path.\(backend.rawValue)"); if agentPath != oldValue { invalidateModels() } } }
+    @Published var effort: String { didSet { preferences.set(effort, forKey: "ai.effort.\(backend.rawValue)") } }
+    @Published var fastMode: Bool { didSet { preferences.set(fastMode, forKey: "ai.fast.\(backend.rawValue)") } }
+    @Published var agentOptions: [AgentSessionOption] = []
+    @Published var agentSelections: [String: String] { didSet { preferences.set(agentSelections, forKey: "ai.options.\(backend.rawValue)") } }
+    @Published private(set) var codexEfforts: [String: [String]] = [:]
+    var effortLevels: [String] {
+        switch backend {
+        case .codex: codexEfforts[model] ?? ["low", "medium", "high", "xhigh"]
+        case .claudeCode: ["low", "medium", "high", "max"]
+        case .cloud, .localHTTP: ["none", "minimal", "low", "medium", "high", "xhigh"]
+        default: []
+        }
+    }
+    var supportsFastMode: Bool { backend == .codex || backend == .claudeCode }
     @Published var allowWeb: Bool
     @Published var key = "" { didSet { if key != oldValue { invalidateModels() } } }
     private var originalKey: String?
@@ -36,7 +73,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
     @Published var models: [String] = []
     @Published var refreshing = false
     @Published var statusIsError = false
-    var configuration: AIConfiguration { .init(backend: backend, model: model, endpoint: endpoint, codexPath: codexPath, key: key, allowWeb: allowWeb) }
+    var configuration: AIConfiguration { .init(backend: backend, model: model, endpoint: endpoint, codexPath: codexPath, key: key, allowWeb: allowWeb, agentPath: agentPath, effort: effort, fastMode: fastMode, agentSelections: agentSelections) }
     private func invalidateModels() {
         modelGeneration = UUID()
         models = []; refreshing = false; status = ""; statusIsError = false
@@ -50,6 +87,10 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
         model = preferences.string(forKey: "ai.model.\(backend.rawValue)") ?? preferences.string(forKey: "ai.model") ?? ""
         endpoint = preferences.string(forKey: "ai.endpoint.\(backend.rawValue)") ?? preferences.string(forKey: "ai.endpoint") ?? (backend == .localHTTP ? "http://127.0.0.1:11434/v1" : "https://api.openai.com/v1")
         codexPath = preferences.string(forKey: "ai.codexPath") ?? (["/opt/homebrew/bin/codex", "/usr/local/bin/codex", "/Applications/Codex.app/Contents/Resources/codex"].first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/opt/homebrew/bin/codex")
+        agentPath = preferences.string(forKey: "ai.path.\(backend.rawValue)") ?? backend.defaultExecutable
+        effort = preferences.string(forKey: "ai.effort.\(backend.rawValue)") ?? ""
+        fastMode = preferences.bool(forKey: "ai.fast.\(backend.rawValue)")
+        agentSelections = preferences.dictionary(forKey: "ai.options.\(backend.rawValue)") as? [String: String] ?? [:]
         allowWeb = preferences.bool(forKey: "ai.web")
         do { key = usesKeychain ? try KeychainSecret.read() : ""; originalKey = key }
         catch { status = error.localizedDescription; statusIsError = true }
@@ -67,13 +108,30 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
                 do {
                     try await rpc.start(executable: configuration.codexPath, cwd: directory)
                     try await rpc.initialize()
-                    var cursor: JSONValue = .null, found: [String] = []
+                    var cursor: JSONValue = .null, found: [String] = [], efforts: [String: [String]] = [:]
                     repeat {
                         let result = try await rpc.request("model/list", .object(["limit": .number(100), "cursor": cursor, "includeHidden": .bool(false)]))
                         found += result["data"].array.compactMap { $0["model"].string }; cursor = result["nextCursor"]
+                        for entry in result["data"].array {
+                            if let name = entry["model"].string {
+                                let levels = entry["supportedReasoningEfforts"].array.compactMap { $0["reasoningEffort"].string }
+                                efforts[name] = levels
+                                if entry["isDefault"] == .bool(true) { efforts[""] = levels }
+                            }
+                        }
                     } while cursor.string != nil
-                    foundModels = found; await rpc.stop()
+                    foundModels = found
+                    if token == modelGeneration { codexEfforts = efforts }
+                    await rpc.stop()
                 } catch { await rpc.stop(); throw error }
+            } else if configuration.backend == .claudeCode {
+                guard FileManager.default.isExecutableFile(atPath: (configuration.agentPath as NSString).expandingTildeInPath) else { throw AIError.message(L("Agent 路径不可执行，请在连接设置中选择已安装的程序。")) }
+                // CLI aliases resolve against the user's Claude login and model access.
+                foundModels = ["sonnet", "opus", "haiku"]
+            } else if configuration.backend.usesACP {
+                let catalog = try await ACPAgentProvider.catalog(executable: configuration.agentPath, backend: configuration.backend, model: configuration.model)
+                foundModels = catalog.models
+                if token == modelGeneration { agentOptions = catalog.options }
             } else {
                 guard let url = URL(string: configuration.endpoint), url.scheme == "https" || url.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "") else { throw AIError.message(L("无效的模型服务地址。")) }
                 var request = URLRequest(url: url.appendingPathComponent("models")); request.timeoutInterval = 20
@@ -84,7 +142,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable { case codex, cloud
             }
             guard token == modelGeneration, !Task.isCancelled else { return }
             models = Array(Set(foundModels)).sorted()
-            status = L("已读取 \(models.count) 个模型")
+            status = configuration.backend == .claudeCode ? L("可使用 CLI 模型别名，或输入完整模型名称。") : L("已读取 \(models.count) 个模型")
         } catch { if token == modelGeneration, !Task.isCancelled { status = error.localizedDescription; statusIsError = true } }
     }
     func save() {
@@ -102,6 +160,10 @@ struct AIConfiguration: Sendable {
     let codexPath: String
     let key: String
     let allowWeb: Bool
+    let agentPath: String
+    let effort: String
+    let fastMode: Bool
+    let agentSelections: [String: String]
 }
 private enum KeychainSecret {
     static var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "dev.paperreader.mac.ai", kSecAttrAccount as String: "api-key"] }
@@ -228,10 +290,14 @@ struct NoteProposal: Identifiable {
                 if configuration.backend == .codex {
                     let cwd = FileManager.default.temporaryDirectory.appendingPathComponent("PaperReader-AI", isDirectory: true)
                     try FileManager.default.createDirectory(at: cwd, withIntermediateDirectories: true)
-                    provider = CodexAIProvider(executable: configuration.codexPath, model: configuration.model, cwd: cwd)
+                    provider = CodexAIProvider(executable: configuration.codexPath, model: configuration.model, cwd: cwd, effort: configuration.effort, fastMode: configuration.fastMode)
+                } else if configuration.backend == .claudeCode {
+                    provider = ClaudeCodeProvider(executable: configuration.agentPath, model: configuration.model, effort: configuration.effort, fastMode: configuration.fastMode)
+                } else if configuration.backend.usesACP {
+                    provider = ACPAgentProvider(executable: configuration.agentPath, backend: configuration.backend, model: configuration.model, selections: configuration.agentSelections)
                 } else {
                     guard let base = URL(string: configuration.endpoint) else { throw AIError.message(L("无效的模型服务地址。")) }
-                    provider = CloudAIProvider(baseURL: base, model: configuration.model, key: configuration.backend == .cloud ? configuration.key : "")
+                    provider = CloudAIProvider(baseURL: base, model: configuration.model, key: configuration.backend == .cloud ? configuration.key : "", reasoningEffort: configuration.effort)
                 }
                 for try await event in provider.stream(request) {
                     try Task.checkCancellation()

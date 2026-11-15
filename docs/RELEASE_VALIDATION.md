@@ -1,6 +1,19 @@
-# Distribution validation — 2026-11-15
+# Distribution validation — 2026-11-16
 
-## Current release 0.4.13 / build 18
+## Current release 0.4.15 / build 20
+
+Published [v0.4.15](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.15) from `8450687`, including the composer, publication-badge and literature-graph implementation in `8a20835` and final compatibility changes in `f0f3bde`. Debug and optimized Swift builds, offline editor bundling, app packaging and the 355-key localization check completed. This iteration followed the user's request to skip functional and UI tests. OpenAlex response handling, graph interaction, AI publication identification, composer layout and full-screen appearance remain unverified at runtime.
+
+Application notarization `2f2878e9-823c-41f6-b71a-7cf3185a9317` and DMG notarization `8728c1dd-5825-47ca-bd02-f120b871cb1c` were Accepted. Both were stapled and passed Gatekeeper assessment. The 11,595,202-byte DMG SHA-256 is `16fe5e7a06289ea5999dda5b175d4cff0a68ba7152328c580cdc11ff0d39a397`, matching the GitHub asset digest. Home deployment run `43736274047` succeeded. Live release metadata and build-20 feed match the repository, and Sparkle's verifier accepts the live feed signature.
+
+The normal updater or DMG installation delivers this version. The copy in /Applications remained 0.4.12 during publication. Installation and relaunch were left to the application's normal update flow.
+
+## Historical release 0.4.14 / build 19
+
+Published [v0.4.14](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.14) introduced the composer, blue dividers, publication badges and literature graph from `8a20835`. Publication completed before the final compatibility commit was available. The subsequent 0.4.15 release contains documented API paging, selection-failure protection and the smaller graph window. Feature and UI testing was skipped for both releases at the user's request.
+
+
+## Historical release 0.4.13 / build 18
 
 Published [v0.4.13](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.13) from `d9049b2`, including the UI change in `c26892a`. Debug and optimized Swift builds, the offline editor build, application packaging and the 326-key localization consistency check completed. As requested by the user, this iteration skipped functional, integration and UI tests. Existing selection-color assertions were updated to the requested label-color style, without executing them. New Claude Code, Qwen Code, DeepSeek Harness and CodeBuddy ACP interoperability, sandbox behavior, authentication and actual model generation remain unverified. WorkBuddy uses the CodeBuddy ACP backend described in [Agent providers](AGENT_PROVIDERS.md).
 

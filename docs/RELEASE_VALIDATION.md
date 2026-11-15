@@ -1,10 +1,19 @@
 # Distribution validation — 2026-11-15
 
+## Current release 0.4.13 / build 18
+
+Published [v0.4.13](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.13) from `d9049b2`, including the UI change in `c26892a`. Debug and optimized Swift builds, the offline editor build, application packaging and the 326-key localization consistency check completed. As requested by the user, this iteration skipped functional, integration and UI tests. Existing selection-color assertions were updated to the requested label-color style, without executing them. New Claude Code, Qwen Code, DeepSeek Harness and CodeBuddy ACP interoperability, sandbox behavior, authentication and actual model generation remain unverified. WorkBuddy uses the CodeBuddy ACP backend described in [Agent providers](AGENT_PROVIDERS.md).
+
+Application notarization `d4e2aff9-126c-4533-845b-d0e02460e4b1` and DMG notarization `e0632bb1-8c58-4f4a-aff2-e4a154ee8151` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,404,905-byte DMG SHA-256 is `6cfb7aabfa78dc8b1b3725e2f52922b9ee4bc31a19be027e4b20b5169734eb36`, matching the GitHub release asset digest. Home deployment run `43731134628` succeeded. Live website metadata and build-18 update feed match the repository, and Sparkle's verifier accepts the live feed signature.
+
+The installed application remained 0.4.12 during publication. Installation and relaunch of 0.4.13 were left to the application's normal update flow.
 
 
 
 
-## Current release 0.4.12 / build 17
+
+
+## Historical release 0.4.12 / build 17
 
 Published [v0.4.12](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.12) from `3cbb931`. The optimized application compiled. Application notarization `a208e4b4-49c5-4dc6-8cb5-b54bf48442d4` and DMG notarization `9cf150f2-ebd8-4a5f-a4de-c2e02e894888` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,303,626-byte DMG SHA-256 is `3a4aa44fa87ec6f371a8214b803bc47c9472928fc2d52d9fc0606a77759a7136`. Live website metadata and build-17 update feed match the repository, and Sparkle's verifier accepts the live feed signature.
 

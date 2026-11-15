@@ -1,3 +1,11 @@
+## 0.4.13 界面和 Agent 配置更新
+
+2026-11-15。文件树选中行改为浅蓝色，文字采用系统 labelColor，浅色模式显示深色，深色模式跟随系统。窗口顶栏移除左右侧栏按钮，笔记和论文对话的标题栏分别加入 chevron.right 收起入口，笔记继续由 CommandRegistry 调用，显示菜单和快捷键可重新展开。
+
+提供方增加 Claude Code、Qwen Code、DeepSeek Harness 和 WorkBuddy（CodeBuddy ACP 后端）。CLI 与 ACP 复用异步进程读取、错误诊断和取消处理，研究工具通过每轮独立的 stdio MCP helper 连接应用已有工具。Codex / Claude Code 增加原生思考强度与快速模式参数，ACP 的思考和速度项读取 Agent 的 configOptions，HTTP 接口可传 reasoning_effort。生成选项按提供方保存。
+
+遵照本轮用户要求，跳过功能、原生界面和真实 Agent 测试。Debug / Release 编译、离线编辑器构建、应用打包和本地化检查通过。已发布签名及公证的 0.4.13，线上下载元数据和 build 18 更新源已同步。新 Agent 的登录、推理、MCP 权限往返与沙盒兼容性仍待运行验证。
+
 # 全屏、文件树与 IEEE 聚焦修复验证
 
 ## 0.4.12 行内 Markdown 输入验证

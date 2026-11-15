@@ -57,6 +57,8 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
     @Published var agentOptions: [AgentSessionOption] = []
     @Published var agentSelections: [String: String] { didSet { preferences.set(agentSelections, forKey: "ai.options.\(backend.rawValue)") } }
     @Published private(set) var codexEfforts: [String: [String]] = [:]
+    @Published private(set) var codexDefaultEfforts: [String: String] = [:]
+    @Published private(set) var codexDefaultModel = ""
     var effortLevels: [String] {
         switch backend {
         case .codex: codexEfforts[model] ?? ["low", "medium", "high", "xhigh"]
@@ -78,6 +80,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
     private func invalidateModels() {
         modelGeneration = UUID()
         models = []; refreshing = false; status = ""; statusIsError = false
+        codexEfforts = [:]; codexDefaultEfforts = [:]; codexDefaultModel = ""
     }
     init() {
         let testing = ProcessInfo.processInfo.arguments.contains("--self-test")
@@ -110,6 +113,7 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
                     try await rpc.start(executable: configuration.codexPath, cwd: directory)
                     try await rpc.initialize()
                     var cursor: JSONValue = .null, found: [String] = [], efforts: [String: [String]] = [:]
+                    var defaults: [String: String] = [:], defaultModel = ""
                     repeat {
                         let result = try await rpc.request("model/list", .object(["limit": .number(100), "cursor": cursor, "includeHidden": .bool(false)]))
                         found += result["data"].array.compactMap { $0["model"].string }; cursor = result["nextCursor"]
@@ -117,12 +121,15 @@ enum AIBackend: String, CaseIterable, Identifiable, Sendable {
                             if let name = entry["model"].string {
                                 let levels = entry["supportedReasoningEfforts"].array.compactMap { $0["reasoningEffort"].string }
                                 efforts[name] = levels
-                                if entry["isDefault"] == .bool(true) { efforts[""] = levels }
+                                defaults[name] = entry["defaultReasoningEffort"].string
+                                if entry["isDefault"] == .bool(true) {
+                                    efforts[""] = levels; defaults[""] = defaults[name]; defaultModel = name
+                                }
                             }
                         }
                     } while cursor.string != nil
                     foundModels = found
-                    if token == modelGeneration { codexEfforts = efforts }
+                    if token == modelGeneration { codexEfforts = efforts; codexDefaultEfforts = defaults; codexDefaultModel = defaultModel }
                     await rpc.stop()
                 } catch { await rpc.stop(); throw error }
             } else if configuration.backend == .claudeCode {

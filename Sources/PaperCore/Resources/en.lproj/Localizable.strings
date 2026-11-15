@@ -60,7 +60,7 @@
 "使用 Agent 自身的登录配置。请先在终端完成登录。需要已安装的 CLI，并支持当前协议。" = "Uses the agent’s own login configuration. Sign in through its CLI first. An installed CLI with protocol support is required.";
 "使用文件版本" = "Use file version";
 "使用本机 Codex 登录；模型推理可能在云端。Shell、文件写入和外部插件不向 AI 开放。" = "Uses your local Codex sign-in; inference may run in the cloud. Shell, file writes, and external plugins are disabled.";
-"使用默认强度" = "Use default effort";
+"使用此模型" = "Use this model";
 "使用默认模型" = "Use default model";
 "使用默认设置" = "Use defaults";
 "保存" = "Save";
@@ -143,6 +143,7 @@
 "恢复已删除论文" = "Restore deleted papers";
 "恢复本机草稿" = "Restore local draft";
 "恢复默认" = "Restore defaults";
+"恢复默认生成设置" = "Restore generation defaults";
 "截图到笔记" = "Capture to note";
 "截图区域过大，请选择较小区域。" = "The capture region is too large. Select a smaller region.";
 "截图已保存到原论文资源文件夹；论文切换后未自动插入。" = "The capture was saved with the original paper. It was not inserted after you switched papers.";
@@ -170,6 +171,7 @@
 "插入图片…" = "Insert image…";
 "插入表格" = "Insert table";
 "搜索原文" = "Search in paper";
+"搜索或输入模型名称" = "Search or enter a model name";
 "搜索论文" = "Search papers";
 "搜索论文原文" = "Search paper text";
 "搜索词不能为空。" = "Enter a search query.";
@@ -206,6 +208,7 @@
 "显示资源文件夹" = "Show Asset Folders";
 "显示／隐藏文献库" = "Show or hide library";
 "显示／隐藏笔记" = "Show or hide notes";
+"更多生成选项" = "More generation options";
 "更新" = "Updates";
 "更新通过 HTTPS 下载，并在安装前验证签名。自动检查可随时关闭。" = "Updates download over HTTPS and their signatures are verified before installation. You can turn off automatic checks at any time.";
 "最低" = "Minimal";
@@ -231,7 +234,6 @@
 "检查更新…" = "Check for Updates…";
 "检测到 %@ 栏" = "Detected %@ columns";
 "模型与思考强度" = "Model and reasoning effort";
-"模型名称" = "Model name";
 "模型服务请求失败，HTTP %@。请检查配置与账户权限。" = "The model request failed (HTTP %@). Check your settings and account access.";
 "模型请求了未经授权的工具。" = "The model requested an unauthorized tool.";
 "模型（CLI 可留空）" = "Model (optional for CLI agents)";
@@ -289,7 +291,6 @@
 "自动识别不准时可手动指定栏。扫描 PDF 暂无 OCR。" = "Choose a column manually if detection is inaccurate. OCR is not available for scanned PDFs.";
 "自动阅读" = "Automatic reading";
 "自动阅读按栏前进。上下箭头暂停播放并移动，切换应用后自动暂停。" = "Automatic reading follows column order. Arrow keys pause playback and move. Switching apps pauses playback.";
-"自定义模型…" = "Custom model…";
 "自由绘制" = "Freehand drawing";
 "行内代码" = "Inline code";
 "行内公式" = "Inline equation";
@@ -314,12 +315,14 @@
 "请选择 iCloud Drive 中的文件夹。普通本地文件夹不会自动同步到 iCloud。" = "Choose a folder in iCloud Drive. An ordinary local folder does not automatically sync to iCloud.";
 "请配置有效的模型和 HTTPS 服务地址。" = "Configure a valid model and HTTPS endpoint.";
 "读取模型" = "Load models";
+"读取模型或输入模型名称。" = "Load models or enter a model name.";
 "资源路径不在允许的目录内。" = "The asset path is outside the allowed folder.";
 "超高" = "Extra high";
 "跳转到页码" = "Go to page";
 "软件更新" = "Software updates";
 "输入 DOI 或论文标题，探索引用与相关文献。" = "Enter a DOI or paper title to explore citations and related works.";
 "边缘柔化" = "Soft edges";
+"返回" = "Back";
 "这个工作区已在另一个 Paper Reader 实例中打开，请先关闭那个实例后重试。" = "This workspace is open in another Paper Reader instance. Close that instance and retry.";
 "这份 PDF 没有内嵌目录。" = "This PDF has no embedded outline.";
 "连接设置" = "Connection settings";
@@ -327,6 +330,7 @@
 "选择已有的论文文件夹，按原有层级打开 PDF。" = "Choose an existing paper folder to browse its PDFs in place.";
 "选择文字" = "Select text";
 "选择模型" = "Choose model";
+"选择模型与提供方" = "Choose model and provider";
 "选择节点查看文献信息" = "Select a node to view paper details";
 "速度" = "Speed";
 "遮罩强度" = "Mask opacity";

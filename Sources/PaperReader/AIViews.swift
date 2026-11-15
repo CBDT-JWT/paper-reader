@@ -49,7 +49,6 @@ struct AIComposer: View {
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L("添加上下文"))
                     .accessibilityIdentifier("ai.context")
                 AIConnectionControls(settings: ai.settings, generating: ai.generating).frame(maxWidth: .infinity)
-                AIFastModeButton(settings: ai.settings, generating: ai.generating)
                 Button { if ai.generating { ai.cancel() } else { ai.send() } } label: {
                     Image(systemName: ai.generating ? "stop.fill" : "arrow.up").font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white).frame(width: 34, height: 34)
@@ -71,25 +70,10 @@ struct AIComposer: View {
             }
     }
 }
-private struct AIFastModeButton: View {
-    @ObservedObject var settings: AISettings
-    var generating: Bool
-    var body: some View {
-        if settings.supportsFastMode {
-            Button { settings.fastMode.toggle() } label: {
-                Image(systemName: settings.fastMode ? "bolt.fill" : "bolt").font(Design.body)
-                    .foregroundStyle(settings.fastMode ? WorkspacePalette.accent : Color.secondary).frame(width: 24, height: 30)
-            }.buttonStyle(.plain).disabled(generating).help(L("快速模式"))
-                .accessibilityLabel(L("快速模式")).accessibilityValue(settings.fastMode ? L("已开启") : L("已关闭"))
-                .accessibilityIdentifier("ai.fastMode")
-        }
-    }
-}
 private struct AIConnectionStatus: View {
     @ObservedObject var settings: AISettings
     var body: some View {
         if settings.statusIsError { Text(settings.status).font(Design.small).foregroundStyle(.red).lineLimit(2).padding(.horizontal, 12).help(settings.status) }
-        else if settings.refreshing { ProgressView().controlSize(.small).padding(.horizontal, 12) }
     }
 }
 struct AIConversationView: View {

@@ -1,53 +1,26 @@
 import SwiftUI
 import PaperCore
 
-/// One compact model/effort selector shared by the floating composer and conversation drawer.
 struct AIConnectionControls: View {
     @ObservedObject var settings: AISettings
     var generating: Bool
-    @State private var customModel = ""
-    @State private var editingModel = false
+    @State private var presented = false
     var body: some View {
-        Menu {
-            Picker(L("服务提供方"), selection: $settings.backend) {
-                ForEach(AIBackend.allCases) { Text($0.title).tag($0) }
-            }.accessibilityIdentifier("ai.provider")
-            Divider()
-            if settings.backend.usesCLI { Button(L("使用默认模型")) { settings.model = "" } }
-            ForEach(settings.models, id: \.self) { name in
-                Button { settings.model = name } label: {
-                    if settings.model == name { Label(name, systemImage: "checkmark") }
-                    else { Text(name) }
-                }
-            }
-            Button(L("自定义模型…")) { customModel = settings.model; editingModel = true }
-            Button(L("读取模型")) { Task { await settings.refreshModels() } }.disabled(settings.refreshing)
-            Divider()
-            AIResponseMenuContent(settings: settings)
-        } label: {
+        Button { presented.toggle() } label: {
             HStack(spacing: 5) {
-                Text(settings.model.isEmpty ? (settings.backend == .codex ? "Codex" : settings.backend.title) : settings.model)
-                    .foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
-                if !settings.effortLevels.isEmpty {
-                    Text(AIEffort.title(settings.effort)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-                } else if let option = settings.agentOptions.first(where: \.isGenerationOption) {
-                    Text(option.choices.first { $0.value == (settings.agentSelections[option.id] ?? option.currentValue) }?.name ?? option.name)
-                        .foregroundStyle(.secondary).lineLimit(1)
-                }
+                Text(settings.modelTitle).lineLimit(1).truncationMode(.middle)
+                Text(settings.thinkingTitle).foregroundStyle(.secondary).lineLimit(1).fixedSize()
                 Image(systemName: "chevron.down").font(Design.small).foregroundStyle(.secondary)
-            }.font(Design.body).padding(.horizontal, 6).frame(height: 30)
+            }.font(Design.body).foregroundStyle(.primary).padding(.horizontal, 6).frame(height: 30)
                 .contentShape(RoundedRectangle(cornerRadius: Design.radius))
-        }.menuStyle(.borderlessButton).menuIndicator(.hidden)
+        }.buttonStyle(.plain).disabled(generating)
+            .help(L("模型与思考强度")).accessibilityIdentifier("ai.model")
+            .popover(isPresented: $presented, arrowEdge: .bottom) { AIThinkingPopover(settings: settings) }
             .onChange(of: settings.backend) { _, _ in settings.save() }
             .onChange(of: settings.model) { _, _ in settings.save() }
-            .disabled(generating).help(L("模型与思考强度")).accessibilityIdentifier("ai.model")
+            .onChange(of: generating) { _, busy in if busy { presented = false } }
             .task(id: "\(settings.backend.rawValue)|\(settings.backend.usesACP ? settings.model : "")") {
                 if settings.backend.usesACP || settings.models.isEmpty { await settings.refreshModels() }
-            }
-            .alert(L("自定义模型…"), isPresented: $editingModel) {
-                TextField(L("模型名称"), text: $customModel)
-                Button(L("完成")) { settings.model = customModel.trimmingCharacters(in: .whitespacesAndNewlines); settings.save() }
-                Button(L("取消"), role: .cancel) { }
             }
     }
 }
@@ -76,55 +49,19 @@ struct AIErrorBanner: View {
     }
 }
 
-struct AIResponseMenuContent: View {
-    @ObservedObject var settings: AISettings
-    var body: some View {
-        if !settings.effortLevels.isEmpty {
-            Picker(L("思考强度"), selection: $settings.effort) {
-                Text(L("使用默认强度")).tag("")
-                ForEach(settings.effortLevels, id: \.self) { Text(AIEffort.title($0)).tag($0) }
-            }.accessibilityIdentifier("ai.effort")
-        }
-        ForEach(settings.agentOptions.filter(\.isGenerationOption)) { option in
-            Picker(option.name, selection: Binding(get: { settings.agentSelections[option.id] ?? "" }, set: {
-                if $0.isEmpty { settings.agentSelections.removeValue(forKey: option.id) }
-                else { settings.agentSelections[option.id] = $0 }
-            })) {
-                Text(L("使用默认设置")).tag("")
-                ForEach(option.choices) { Text($0.name).tag($0.value) }
-            }
-        }
-        if settings.supportsFastMode { Toggle(L("快速模式"), isOn: $settings.fastMode) }
-    }
-}
-
 struct AIResponseOptions: View {
     @ObservedObject var settings: AISettings
+    @State private var presented = false
     var body: some View {
-        if !settings.effortLevels.isEmpty || settings.agentOptions.contains(where: \.isGenerationOption) || settings.supportsFastMode {
-            Menu { AIResponseMenuContent(settings: settings) } label: {
+        if !settings.thinkingStops.isEmpty || settings.canToggleFastMode || settings.agentOptions.contains(where: \.isGenerationOption) {
+            Button { presented.toggle() } label: {
                 HStack(spacing: 6) {
-                    Text(settings.effortLevels.isEmpty ? L("生成选项") : L("思考强度"))
-                    if !settings.effortLevels.isEmpty { Text(AIEffort.title(settings.effort)).foregroundStyle(.secondary) }
+                    Text(L("生成选项"))
+                    Text(settings.thinkingTitle).foregroundStyle(.secondary)
                     Image(systemName: "chevron.down").font(Design.small).foregroundStyle(.secondary)
                 }.font(Design.body)
-            }.menuStyle(.borderlessButton).menuIndicator(.hidden)
-        }
-    }
-}
-
-private enum AIEffort {
-    static func title(_ level: String) -> String {
-        switch level {
-        case "": L("默认")
-        case "none": L("关闭思考")
-        case "minimal": L("最低")
-        case "low": L("低")
-        case "medium": L("中等")
-        case "high": L("高")
-        case "xhigh": L("超高")
-        case "max": L("最高")
-        default: level
+            }.buttonStyle(.plain)
+                .popover(isPresented: $presented, arrowEdge: .bottom) { AIThinkingPopover(settings: settings) }
         }
     }
 }

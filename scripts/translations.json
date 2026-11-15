@@ -380,5 +380,12 @@
   "选择节点查看文献信息": "Select a node to view paper details",
   "默认": "Default",
   "生成选项": "Generation options",
-  "重置视图": "Reset view"
+  "重置视图": "Reset view",
+  "使用此模型": "Use this model",
+  "恢复默认生成设置": "Restore generation defaults",
+  "搜索或输入模型名称": "Search or enter a model name",
+  "更多生成选项": "More generation options",
+  "读取模型或输入模型名称。": "Load models or enter a model name.",
+  "返回": "Back",
+  "选择模型与提供方": "Choose model and provider"
 }

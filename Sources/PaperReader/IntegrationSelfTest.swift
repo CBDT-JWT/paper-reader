@@ -363,7 +363,7 @@ import PaperCore
             Darwin.exit(1)
         }
     }
-    private static func findOutline(in view: NSView?) -> NSOutlineView? {
+    static func findOutline(in view: NSView?) -> NSOutlineView? {
         if let tree = view as? NSOutlineView { return tree }
         for child in view?.subviews ?? [] { if let tree = findOutline(in: child) { return tree } }
         return nil

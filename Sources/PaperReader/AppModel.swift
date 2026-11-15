@@ -30,6 +30,18 @@ import PaperCore
     @Published var librarySortAscending = UserDefaults.standard.object(forKey: "library.sortAscending") as? Bool ?? true {
         didSet { UserDefaults.standard.set(librarySortAscending, forKey: "library.sortAscending") }
     }
+    @Published var showAssetFolders = UserDefaults.standard.bool(forKey: "library.showAssetFolders") {
+        didSet {
+            UserDefaults.standard.set(showAssetFolders, forKey: "library.showAssetFolders")
+            if let activeFolderID, hiddenLibraryFolderIDs.contains(activeFolderID) { self.activeFolderID = nil }
+        }
+    }
+    var hiddenLibraryFolderIDs: Set<UUID> {
+        guard !showAssetFolders else { return [] }
+        return folders.filter { $0.name.caseInsensitiveCompare("assets") == .orderedSame }.reduce(into: Set<UUID>()) {
+            $0.formUnion(LibraryHierarchy.descendants(of: $1.id, in: folders))
+        }
+    }
     @Published var workspaceNoteURL: URL?
     @Published var folders: [LibraryFolder] = []
     @Published var metadataPresented = false

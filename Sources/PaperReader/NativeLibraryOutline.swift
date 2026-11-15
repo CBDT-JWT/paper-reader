@@ -52,6 +52,8 @@ struct NativeLibraryOutline: NSViewRepresentable {
         private var folders: [LibraryFolder] = []
         private var sort: LibrarySort?
         private var ascending = true
+        private var showAssetFolders = false
+        private var hiddenFolderIDs: Set<UUID> = []
         private var query = ""
         private var noteURL: URL?
         private var selectedPaper: UUID?
@@ -64,17 +66,18 @@ struct NativeLibraryOutline: NSViewRepresentable {
             let paperChanged = selectedPaper != model.selectedID
             let folderChanged = activeFolder != model.activeFolderID
             let note = model.workspaceNoteURL
-            let dataChanged = noteURL != note || paperRows != rows || folders != model.folders || sort != model.librarySort || ascending != model.librarySortAscending || query != model.query
+            let dataChanged = noteURL != note || paperRows != rows || folders != model.folders || sort != model.librarySort || ascending != model.librarySortAscending || query != model.query || showAssetFolders != model.showAssetFolders
             refreshing = true; defer { refreshing = false }
             if dataChanged {
                 let expanded = Set(items.values.filter { $0.folder != nil && outline.isItemExpanded($0) }.map(\.id))
                 let previous = Set(items.keys)
                 paperRows = rows; papers = model.papers; folders = model.folders; sort = model.librarySort; ascending = model.librarySortAscending; query = model.query
+                showAssetFolders = model.showAssetFolders; hiddenFolderIDs = model.hiddenLibraryFolderIDs
                 noteURL = note
                 items = [:]
                 func build(_ parent: UUID?, visited: Set<UUID>) -> [Item] {
                     let groups = LibraryHierarchy.ordered(folders.filter { folder in parent == nil ? folder.parentID == nil || !folders.contains(where: { $0.id == folder.parentID }) : folder.parentID == parent })
-                    var nodes: [Item] = groups.filter { !visited.contains($0.id) }.map { folder in
+                    var nodes: [Item] = groups.filter { !visited.contains($0.id) && !hiddenFolderIDs.contains($0.id) }.map { folder in
                         let item = Item(folder: folder); items[folder.id] = item
                         item.children = build(folder.id, visited: visited.union([folder.id])); return item
                     }
@@ -83,7 +86,10 @@ struct NativeLibraryOutline: NSViewRepresentable {
                     return nodes
                 }
                 if query.isEmpty { roots = build(nil, visited: []) }
-                else { roots = model.librarySort.ordered(model.filteredPapers, ascending: ascending).map { paper in let item = Item(paper: paper); items[paper.id] = item; return item } }
+                else {
+                    let matches = model.filteredPapers.filter { paper in paper.folderID.map { !hiddenFolderIDs.contains($0) } ?? true }
+                    roots = model.librarySort.ordered(matches, ascending: ascending).map { paper in let item = Item(paper: paper); items[paper.id] = item; return item }
+                }
                 if let note, query.isEmpty || note.lastPathComponent.localizedCaseInsensitiveContains(query) {
                     let item = Item(note: note, id: model.store.sharedNoteID)
                     roots.insert(item, at: 0); items[item.id] = item
@@ -119,7 +125,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
             view.detail.stringValue = item.paper?.metadata?.year.map(String.init) ?? (item.paper == nil ? "" : "PDF")
             view.detail.isHidden = item.paper == nil
             view.icon.image = NSImage(systemSymbolName: item.note != nil ? "doc.text" : item.folder != nil ? "folder" : "doc.richtext", accessibilityDescription: nil)
-            view.icon.contentTintColor = item.note != nil ? WorkspacePalette.amberNS : WorkspacePalette.accentNS
+            view.normalIconColor = item.note != nil ? WorkspacePalette.amberNS : WorkspacePalette.accentNS
             view.toolTip = item.note?.path ?? item.paper?.displayFileName ?? item.folder?.name
             view.setAccessibilityLabel(item.note?.lastPathComponent ?? item.folder?.name ?? item.paper?.displayFileName)
             return view
@@ -191,7 +197,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
             let apply: (UUID?) -> Void = { [model] parent in if item.folder != nil { model.moveFolder(item.id, to: parent) } else { model.move(item.id, to: parent) } }
             destinations.addItem(action(L("文献库")) { apply(nil) })
             let forbidden = item.folder != nil ? LibraryHierarchy.descendants(of: item.id, in: folders) : []
-            for folder in LibraryHierarchy.ordered(folders) where !forbidden.contains(folder.id) { destinations.addItem(action(folder.name) { apply(folder.id) }) }
+            for folder in LibraryHierarchy.ordered(folders) where !forbidden.contains(folder.id) && !hiddenFolderIDs.contains(folder.id) { destinations.addItem(action(folder.name) { apply(folder.id) }) }
             menu.addItem(move); menu.addItem(.separator())
             if let folder = item.folder { menu.addItem(action(L("移除文件夹")) { [model] in model.removeFolder(folder) }) }
             if let paper = item.paper {
@@ -221,6 +227,14 @@ struct NativeLibraryOutline: NSViewRepresentable {
     let title = NSTextField(labelWithString: "")
     let detail = NSTextField(labelWithString: "")
     let icon = NSImageView()
+    var normalIconColor = WorkspacePalette.accentNS { didSet { updateColors() } }
+    override var backgroundStyle: NSView.BackgroundStyle { didSet { updateColors() } }
+    private func updateColors() {
+        let selected = backgroundStyle == .emphasized
+        title.textColor = selected ? .white : .labelColor
+        detail.textColor = selected ? NSColor.white.withAlphaComponent(0.85) : .secondaryLabelColor
+        icon.contentTintColor = selected ? .white : normalIconColor
+    }
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         title.font = .systemFont(ofSize: 14); title.lineBreakMode = .byTruncatingMiddle
@@ -238,8 +252,8 @@ struct NativeLibraryOutline: NSViewRepresentable {
 
 @MainActor private final class WorkspaceLibraryRow: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
-        WorkspacePalette.selectionNS.setFill()
+        WorkspacePalette.selectedRowNS.setFill()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: Design.radius, yRadius: Design.radius).fill()
     }
-    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { isSelected ? .emphasized : .normal }
 }

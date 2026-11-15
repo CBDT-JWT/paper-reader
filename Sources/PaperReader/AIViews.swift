@@ -98,7 +98,7 @@ struct AIConversationView: View {
             if ai.error != nil { AIErrorBanner(ai: ai).padding(.horizontal, 12).padding(.top, 8) }
             AIComposer(ai: ai, compact: false).padding(.horizontal, 4).padding(.top, 8)
             AIInputHint().padding(.horizontal, 18).frame(height: Design.footerHeight)
-        }.font(Design.body).background(WorkspacePalette.paper).frame(minWidth: 300)
+        }.font(Design.body).background(WorkspacePalette.paper).frame(minWidth: 300, maxWidth: .infinity)
     }
     private func diffColumn(_ text: String, comparedTo other: String, before: Bool) -> some View {
         let lines = text.components(separatedBy: "\n"), otherLines = other.components(separatedBy: "\n")

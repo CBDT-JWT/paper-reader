@@ -169,6 +169,7 @@
   "无法更新 Keychain。": "Keychain could not be updated.",
   "无法读取 Keychain 中的 API Key。": "The API key could not be read from Keychain.",
   "无法读取这个 PDF 文件。": "This PDF could not be opened.",
+  "显示资源文件夹": "Show Asset Folders",
   "显示／隐藏文献库": "Show or hide library",
   "显示／隐藏笔记": "Show or hide notes",
   "更新": "Updates",

@@ -322,5 +322,6 @@
   "文件下载失败，请检查下载链接。": "Download failed. Check the file URL.",
   "移除引用": "Remove quote",
   "论文原文 · 第 %@ 页": "Paper text · Page %@",
-  "问 AI": "Ask AI"
+  "问 AI": "Ask AI",
+  "显示资源文件夹": "Show Asset Folders"
 }

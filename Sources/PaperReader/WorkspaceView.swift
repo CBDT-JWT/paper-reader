@@ -21,7 +21,8 @@ struct WorkspaceView: View {
             .navigationTitle(model.currentPaper?.title ?? model.store.documentsRoot?.lastPathComponent ?? L("阅读工作区"))
             .tint(WorkspacePalette.accent)
             .background(WorkspacePalette.chrome)
-            .toolbarBackground(.hidden, for: .windowToolbar)
+            .toolbarBackground(WorkspacePalette.toolbar, for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button { model.commands.run(.sidebar) } label: { Image(systemName: "sidebar.left").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("文献库"))
@@ -52,13 +53,28 @@ struct WorkspaceView: View {
 struct WorkspaceSplit: NSViewControllerRepresentable {
     @ObservedObject var model: AppModel
     @ObservedObject var ai: AIController
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    @MainActor final class Coordinator {
+        private let preferences = ProcessInfo.processInfo.arguments.contains("--self-test") ? UserDefaults(suiteName: "PaperReader.LayoutSelfTest")! : .standard
+        var conversationWidth: CGFloat
+        init() {
+            let saved = preferences.double(forKey: "workspace.conversationWidth")
+            conversationWidth = saved > 0 ? min(560, max(320, saved)) : 380
+        }
+        func rememberWidth(_ width: CGFloat) {
+            conversationWidth = min(560, max(320, width))
+            preferences.set(conversationWidth, forKey: "workspace.conversationWidth")
+        }
+    }
     func makeNSViewController(context: Context) -> NSSplitViewController {
         let controller = NSSplitViewController()
         controller.splitView = WorkspaceDivider()
+        controller.splitView.identifier = .init("workspace.split")
         controller.splitView.isVertical = true
         controller.splitView.dividerStyle = .thin
         controller.splitView.autosaveName = ProcessInfo.processInfo.arguments.contains("--self-test") ? "PaperReader.Workspace.SelfTest.v2" : "PaperReader.Workspace.v1"
         let library = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: LibraryTreeView(model: model).workspaceSurface()))
+        library.allowsFullHeightLayout = false
         library.minimumThickness = 210; library.maximumThickness = 340; library.canCollapse = true
         library.holdingPriority = .init(260)
         let reader = NSSplitViewItem(viewController: NSHostingController(rootView: ReaderPane(model: model, reader: model.reader).workspaceSurface()))
@@ -66,7 +82,13 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         let note = NSSplitViewItem(viewController: NSHostingController(rootView: NotePane(model: model, editor: model.editor).workspaceSurface()))
         note.minimumThickness = 300; note.maximumThickness = 760; note.canCollapse = true
         note.holdingPriority = .init(250)
-        let conversation = NSSplitViewItem(inspectorWithViewController: NSHostingController(rootView: AIConversationDrawer(ai: ai).workspaceSurface()))
+        let conversationHost = NSHostingController(rootView: AnyView(AIConversationDrawer(ai: ai).workspaceSurface()))
+        // The split item owns its width. A new quote or model name must not
+        // replace that width with the SwiftUI content's intrinsic fitting size.
+        conversationHost.sizingOptions = []
+        (conversationHost.view as? NSHostingView<AnyView>)?.sizingOptions = []
+        let conversation = NSSplitViewItem(viewController: conversationHost)
+        conversation.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
         conversation.minimumThickness = 320; conversation.maximumThickness = 560; conversation.canCollapse = true
         conversation.holdingPriority = .init(240); conversation.isCollapsed = true
         controller.addSplitViewItem(library); controller.addSplitViewItem(reader); controller.addSplitViewItem(note)
@@ -74,19 +96,37 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         return controller
     }
     func updateNSViewController(_ controller: NSSplitViewController, context: Context) {
-        controller.splitViewItems[0].isCollapsed = !model.showSidebar
-        controller.splitViewItems[2].isCollapsed = !model.showNotes
-        controller.splitViewItems[3].isCollapsed = !ai.expanded
+        let library = controller.splitViewItems[0], note = controller.splitViewItems[2], conversation = controller.splitViewItems[3]
+        if library.isCollapsed != !model.showSidebar { library.isCollapsed = !model.showSidebar }
+        if note.isCollapsed != !model.showNotes { note.isCollapsed = !model.showNotes }
         if let window = controller.view.window {
-            window.titlebarSeparatorStyle = .none
-            if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
-            window.backgroundColor = WorkspacePalette.toolbarNS
+            if window.titlebarSeparatorStyle != .none { window.titlebarSeparatorStyle = .none }
+            if window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = false }
+            if window.backgroundColor != WorkspacePalette.chromeNS { window.backgroundColor = WorkspacePalette.chromeNS }
             if window.toolbarStyle != .unifiedCompact { window.toolbarStyle = .unifiedCompact }
-            let required = max(1060, controller.splitViewItems.filter { !$0.isCollapsed }.reduce(0) { $0 + $1.minimumThickness } + 8)
-            window.contentMinSize.width = required
+            let visibleItems = controller.splitViewItems.filter { $0 === conversation ? ai.expanded : !$0.isCollapsed }
+            let required = max(1060, visibleItems.reduce(0) { $0 + $1.minimumThickness } + 8)
+            if window.contentMinSize.width != required { window.contentMinSize.width = required }
             if window.contentLayoutRect.width < required, !window.styleMask.contains(.fullScreen) {
                 var size = window.contentView?.bounds.size ?? window.contentLayoutRect.size; size.width = required
                 window.setContentSize(size)
+            }
+        }
+        if conversation.isCollapsed != !ai.expanded {
+            if !ai.expanded { context.coordinator.rememberWidth(conversation.viewController.view.frame.width) }
+            conversation.isCollapsed = !ai.expanded
+            if ai.expanded {
+                controller.view.layoutSubtreeIfNeeded()
+                let split = controller.splitView
+                let leading = split.bounds.maxX - context.coordinator.conversationWidth - split.dividerThickness
+                if !note.isCollapsed {
+                    let readerEnd = leading - note.minimumThickness - split.dividerThickness
+                    if split.arrangedSubviews[1].frame.maxX > readerEnd {
+                        split.setPosition(readerEnd, ofDividerAt: 1)
+                        controller.view.layoutSubtreeIfNeeded()
+                    }
+                }
+                split.setPosition(leading, ofDividerAt: 2)
             }
         }
     }

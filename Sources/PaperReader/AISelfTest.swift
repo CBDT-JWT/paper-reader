@@ -18,7 +18,12 @@ import PaperCore
             await model.flush()
             let output = model.store.root.deletingLastPathComponent().appendingPathComponent("AIExport", isDirectory: true)
             try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-            report["checks"] = try await run(model: model, output: output)
+            if ProcessInfo.processInfo.arguments.contains("--layout-self-test") {
+                report["scope"] = "workspace-layout"
+                report["checks"] = try await WorkspaceLayoutSelfTest.run(model: model, output: output)
+            } else {
+                report["checks"] = try await run(model: model, output: output)
+            }
             report["success"] = true
         } catch { report["error"] = error.localizedDescription }
         try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]).write(to: URL(fileURLWithPath: path), options: .atomic)
@@ -79,7 +84,7 @@ import PaperCore
                 guard let note = accessibilityFrame("note.status", in: window.contentView), let hint = accessibilityFrame("ai.hint", in: window.contentView) else { return false }
                 return abs(note.midY - hint.midY) < 2
             }
-            try check(window.titlebarAppearsTransparent && window.toolbarStyle == .unifiedCompact, "Full-screen workspace uses compact native chrome with aligned note and conversation footers")
+            try check(!window.titlebarAppearsTransparent && window.toolbarStyle == .unifiedCompact, "Full-screen workspace uses opaque compact native chrome with aligned note and conversation footers")
             try await IntegrationSelfTest.setFullScreen(wasFullScreen, window: window)
             if let input = input(in: window.contentView) {
                 let originalSubmit = input.submit
@@ -105,7 +110,7 @@ import PaperCore
             model.reader.view.setCurrentSelection(selected, animate: false)
             model.reader.view.go(to: selected)
             model.reader.view.showSelectionActions()
-            try check(model.reader.view.selectionActionsVisible, "Selecting real PDF text presents the native highlight, Ask AI and excerpt popover")
+            try check(model.reader.view.selectionActionsVisible, "Selecting real PDF text presents the highlight, Ask AI and excerpt toolbar")
             model.reader.view.dismissSelectionActions()
             model.commands.run(.askAI)
             try await wait("PDF selection quote missing") { ai.pendingQuote?.link != nil }

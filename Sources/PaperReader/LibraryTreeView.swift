@@ -27,6 +27,7 @@ struct LibraryTreeView: View {
                         ForEach(LibrarySort.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.pickerStyle(.inline)
                     Toggle(L("倒序排列"), isOn: Binding(get: { !model.librarySortAscending }, set: { model.librarySortAscending = !$0 }))
+                    Toggle(L("显示资源文件夹"), isOn: $model.showAssetFolders)
                     Divider()
                     Button(L("恢复已删除论文"), systemImage: "arrow.uturn.backward") { Task { await model.restoreTrash() } }
                 } label: { Image(systemName: "arrow.up.arrow.down").frame(width: 30, height: 30) }

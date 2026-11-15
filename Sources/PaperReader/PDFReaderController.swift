@@ -73,6 +73,7 @@ private final class LoadedPDF: @unchecked Sendable {
         scrollObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                self.view.dismissSelectionActions()
                 self.sourceOverlay.needsDisplay = true; self.annotations.overlay.needsDisplay = true; self.focus.overlay.needsDisplay = true
                 self.stateChanged(); self.focus.prepare()
             }
@@ -109,8 +110,8 @@ private final class LoadedPDF: @unchecked Sendable {
         let newPage = view.currentPage.map { document.index(for: $0) } ?? 0
         let newPosition = view.currentDestination.map { PDFPoint($0.point) }
         let changed = page != newPage || scale != view.scaleFactor || position != newPosition
-        if page != newPage { page = newPage }
-        if scale != view.scaleFactor { scale = view.scaleFactor }
+        if page != newPage { view.dismissSelectionActions(); page = newPage }
+        if scale != view.scaleFactor { view.dismissSelectionActions(); scale = view.scaleFactor }
         position = newPosition
         sourceOverlay.needsDisplay = true
         if changed { onStateChange?(page, view.autoScales ? 0 : scale) }
@@ -155,16 +156,19 @@ private final class LoadedPDF: @unchecked Sendable {
     var focusKey: ((Int) -> Bool)?
     var canShowSelectionActions: () -> Bool = { true }
     private var selectionMonitor: Any?
-    private let selectionPopover = NSPopover()
+    private var selectionActionsView: NSView?
+    private(set) var selectionActionsAnchorInScreen: NSRect?
     private var selectionGestureStart: NSPoint?
     private var selectionGestureText: String?
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let selectionMonitor { NSEvent.removeMonitor(selectionMonitor); self.selectionMonitor = nil }
         guard window != nil else { dismissSelectionActions(); return }
-        selectionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .leftMouseDown, .scrollWheel]) { [weak self] event in
+        selectionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .leftMouseDown, .scrollWheel, .keyDown]) { [weak self] event in
             guard let self, event.window === self.window else { return event }
+            if event.type == .keyDown, event.keyCode == 53, self.selectionActionsVisible { self.dismissSelectionActions(); return nil }
             if event.type == .scrollWheel { self.dismissSelectionActions(); return event }
+            if let actions = self.selectionActionsView, actions.bounds.contains(actions.convert(event.locationInWindow, from: nil)) { return event }
             let point = self.convert(event.locationInWindow, from: nil)
             if event.type == .leftMouseDown {
                 self.dismissSelectionActions()
@@ -173,27 +177,64 @@ private final class LoadedPDF: @unchecked Sendable {
             } else if event.type == .leftMouseUp, let start = self.selectionGestureStart {
                 self.selectionGestureStart = nil
                 let selecting = hypot(point.x - start.x, point.y - start.y) > 3 || event.clickCount > 1 || self.currentSelection?.string != self.selectionGestureText
-                if selecting, self.visibleRect.contains(point) { DispatchQueue.main.async { [weak self] in self?.showSelectionActions() } }
+                if selecting, self.visibleRect.contains(point) {
+                    let location = event.locationInWindow
+                    DispatchQueue.main.async { [weak self] in self?.showSelectionActions(at: location) }
+                }
             }
             return event
         }
     }
-    func dismissSelectionActions() { selectionPopover.close() }
-    func showSelectionActions() {
-        guard window != nil, let selection = currentSelection, selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-              let line = selection.selectionsByLine().last, let page = line.pages.last else { dismissSelectionActions(); return }
-        let anchor = convert(line.bounds(for: page), from: page).intersection(visibleRect)
-        guard !anchor.isNull, !anchor.isEmpty else { dismissSelectionActions(); return }
-        selectionPopover.behavior = .semitransient
-        selectionPopover.animates = false
-        selectionPopover.contentViewController = NSHostingController(rootView: PDFSelectionActions { [weak self] id in
+    func dismissSelectionActions() {
+        selectionActionsView?.removeFromSuperview()
+        selectionActionsView = nil
+        selectionActionsAnchorInScreen = nil
+    }
+    func showSelectionActions(at locationInWindow: NSPoint? = nil) {
+        dismissSelectionActions()
+        guard window != nil, canShowSelectionActions(), let container = superview,
+              let selection = currentSelection, selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        let visible = convert(visibleRect, to: container).intersection(container.visibleRect)
+        let anchor: NSRect
+        if let locationInWindow {
+            // Keep the release point in window coordinates until the PDFKit
+            // selection and any SwiftUI layout updates have settled.
+            let point = container.convert(locationInWindow, from: nil)
+            anchor = NSRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2).intersection(visible)
+        } else {
+            let lines = selection.selectionsByLine().compactMap { line -> NSRect? in
+                guard let page = line.pages.last else { return nil }
+                let rect = convert(convert(line.bounds(for: page), from: page), to: container).intersection(visible)
+                return rect.isNull || rect.isEmpty ? nil : rect
+            }
+            guard let last = lines.last else { return }
+            anchor = last
+        }
+        guard !anchor.isNull, !anchor.isEmpty else { return }
+        selectionActionsAnchorInScreen = window?.convertToScreen(container.convert(anchor, to: nil))
+        let actions = NSHostingView(rootView: PDFSelectionActions { [weak self] id in
             self?.dismissSelectionActions()
             self?.command?(id)
-        })
-        selectionPopover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
+        }.background(WorkspacePalette.paper, in: RoundedRectangle(cornerRadius: Design.radius))
+            .shadow(color: .black.opacity(0.14), radius: 6, y: 2))
+        let size = actions.fittingSize
+        let available = visible.insetBy(dx: 8, dy: 8)
+        let x = min(max(anchor.midX - size.width / 2, available.minX), max(available.minX, available.maxX - size.width))
+        let above = container.isFlipped ? anchor.minY - size.height - 8 : anchor.maxY + 8
+        let below = container.isFlipped ? anchor.maxY + 8 : anchor.minY - size.height - 8
+        let preferredY = above >= available.minY && above + size.height <= available.maxY ? above : below
+        let y = min(max(preferredY, available.minY), max(available.minY, available.maxY - size.height))
+        actions.frame = NSRect(origin: NSPoint(x: x, y: y), size: size).integral
+        container.addSubview(actions, positioned: .above, relativeTo: nil)
+        selectionActionsView = actions
     }
-    var selectionActionsVisible: Bool { selectionPopover.isShown }
+    var selectionActionsVisible: Bool { selectionActionsView?.superview != nil }
+    var selectionActionsFrameInScreen: NSRect? {
+        guard let actions = selectionActionsView, let window = actions.window else { return nil }
+        return window.convertToScreen(actions.convert(actions.bounds, to: nil))
+    }
     override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53, selectionActionsVisible { dismissSelectionActions(); return }
         if event.keyCode == 125, focusKey?(1) == true { return }
         if event.keyCode == 126, focusKey?(-1) == true { return }
         super.keyDown(with: event)

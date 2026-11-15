@@ -4,17 +4,17 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Paper Reader</title>
         <item>
-            <title>0.4.11</title>
-            <pubDate>Sun, 15 Nov 2026 15:36:03 +0800</pubDate>
+            <title>0.4.12</title>
+            <pubDate>Sun, 15 Nov 2026 16:33:36 +0800</pubDate>
             <link>https://www.weitao-jiang.cn/paper-reader/</link>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>0.4.11</sparkle:shortVersionString>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>0.4.12</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.11/PaperReader-0.4.11-arm64.dmg" length="11289282" type="application/octet-stream" sparkle:edSignature="xvzeY0qduheXGcWnwghOXog/PkstF2qSu0gzVjKzDf+63l/iXtMtTNZ2MNO9QbfnUYYfoo6ArwVABMKUKj4OBw=="></enclosure>
+            <enclosure url="https://github.com/CBDT-JWT/paper-reader/releases/download/v0.4.12/PaperReader-0.4.12-arm64.dmg" length="11303626" type="application/octet-stream" sparkle:edSignature="xIc5B3gM4ULSke7MgYu/zL6DN24QRDdt3die8+WJw3/z3OGiHtg4tQSW2MxNHzUHIGsyaF3+UQQWiZvXS24hBA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: j1PTyIPrmCyBADDmMFy7f5R5IGGXPGW8WEU8KbgyAn5GOKHVfbr5ky+S/39NvU8jdb8tNdgsmAz81X5JA97ODQ==
+edSignature: fGh34P+ScG0L3k9IPEu678YFfLqE86mdSmr2nNcLCup7YqgLWK/U8UlNoRJfEduGewxy2ZRjdlkG6ksOpMm8Cw==
 length: 1210
 -->

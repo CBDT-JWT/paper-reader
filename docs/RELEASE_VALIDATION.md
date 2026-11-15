@@ -4,7 +4,15 @@
 
 
 
-## Current release 0.4.9 / build 14
+## Current release 0.4.10 / build 15
+
+Published [v0.4.10](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.10) from `88cbd82`. The optimized application compiled. Application notarization `557b932c-32c8-4508-933a-0c4e6a539a2b` and DMG notarization `d7b8920b-2e68-4086-a2b4-45fdbd67ce8f` were Accepted. Both artifacts were stapled and passed Gatekeeper as Notarized Developer ID. The 11,282,423-byte DMG SHA-256 is `b23b7cd4e9c565fc33ee78c865a68aa60d0e3c533d37201dbe8ac1270d60afc7`. The publication pipeline verified the signed Sparkle feed and pushed the website metadata.
+
+Fourteen focused native checks passed for each of Chinese/light and English/dark, using disposable libraries. They cover real full-screen transitions, titlebar configuration, PDF selection at 177% zoom, the in-reader selection toolbar's screen coordinates, Escape and zoom dismissal, quote/long-text drawer width stability, native split resizing within pane constraints and width restoration, hidden assets/descendants, the visibility toggle and selected-row foreground colors. See [workspace evidence](WORKSPACE_FIXES.md).
+
+Computer-use capture returned ScreenCaptureKit error -3811. Final full-window visual inspection remains unverified. Native cached view images provide partial diagnostics and exclude the Metal PDF layer and separate full-screen titlebar window. The installed app was still 0.4.9 when distribution was prepared. Actual installation/relaunch, a fresh public-DMG download/remount and the full end-to-end suite were not repeated.
+
+## Historical release 0.4.9 / build 14
 
 Published [v0.4.9](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.9) with the empty ordered-list fix in `33ca519` and release-source push ordering in `9d18aff`. Tiptap 3.33.0's ordered-list parser emitted a list item with empty content for an unfinished numbered item. Its serializer then dereferenced the missing first paragraph. The app now extends the existing MIT-licensed OrderedList parser and supplies its required leading paragraph, retaining every item. Import, normal Markdown insertion/paste and the conversation renderer share this extension. Dependency versions are unchanged, with the existing list package explicitly declared as a direct dependency.
 

@@ -23,6 +23,14 @@ import PaperCore
             throw IntegrationSelfTest.Failure(message: "Workspace split missing")
         }
         let ai = model.ai, pdf = model.reader.view
+        let preferenceName = "PaperReader.WidthFixture.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: preferenceName)!
+        defer { preferences.removePersistentDomain(forName: preferenceName) }
+        preferences.set(560, forKey: "workspace.conversationWidth")
+        let widthFixture = WorkspaceSplit.Coordinator(preferences: preferences)
+        try check(widthFixture.conversationWidth == 300, "A new width configuration uses the narrower 300-point default")
+        widthFixture.rememberWidth(260)
+        try check(WorkspaceSplit.Coordinator(preferences: preferences).conversationWidth == 260, "A manually narrowed 260-point drawer survives preference reload")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         ai.settings.models = ["layout-fixture"]
@@ -37,10 +45,12 @@ import PaperCore
         try check(window.backgroundColor == WorkspacePalette.chromeNS, "Window fallback uses the white content surface")
         try snapshot(window, to: output.appendingPathComponent("fullscreen-closed.png"))
 
+        let storedWidth = UserDefaults(suiteName: "PaperReader.LayoutSelfTest")!.double(forKey: WorkspaceSplit.Coordinator.widthKey)
+        let expectedWidth = storedWidth > 0 ? storedWidth : Design.conversationDefaultWidth
         ai.expanded = true
         try await settle()
         let initialWidth = split.arrangedSubviews[3].frame.width
-        try check((320...560).contains(initialWidth), "Conversation opens at a bounded remembered width")
+        try check(abs(initialWidth - expectedWidth) < 2, "Conversation opens at its configured width (actual \(initialWidth), expected \(expectedWidth))")
         guard let page = pdf.document?.page(at: 0),
               let selection = page.selection(for: page.bounds(for: .cropBox)) else {
             throw IntegrationSelfTest.Failure(message: "PDF selection missing")
@@ -59,11 +69,17 @@ import PaperCore
         split.setPosition(split.bounds.maxX - requestedWidth - split.dividerThickness, ofDividerAt: 2)
         try await settle()
         let resizedWidth = split.arrangedSubviews[3].frame.width
-        try check((320...560).contains(resizedWidth) && abs(resizedWidth - initialWidth) > 2,
+        try check((Design.conversationMinimumWidth...Design.conversationMaximumWidth).contains(resizedWidth) && abs(resizedWidth - initialWidth) > 2,
                   "The conversation divider resizes within the native pane constraints")
         ai.expanded = false; try await settle()
         ai.expanded = true; try await settle()
         try check(abs(split.arrangedSubviews[3].frame.width - resizedWidth) < 2, "Closing and reopening preserves the resized drawer width")
+        split.setPosition(split.bounds.maxX - Design.conversationMinimumWidth - split.dividerThickness, ofDividerAt: 2)
+        try await settle()
+        try check(abs(split.arrangedSubviews[3].frame.width - 260) < 2, "The native drawer can shrink to 260 points")
+        ai.expanded = false; try await settle()
+        ai.expanded = true; try await settle()
+        try check(abs(split.arrangedSubviews[3].frame.width - 260) < 2, "Reopening preserves the narrowed 260-point drawer")
         try snapshot(window, to: output.appendingPathComponent("fullscreen-open.png"))
 
         pdf.scaleFactor = 1.77

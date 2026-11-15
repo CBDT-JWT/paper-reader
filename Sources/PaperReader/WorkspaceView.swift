@@ -7,6 +7,9 @@ enum Design {
     static let radius: CGFloat = 8
     static let paneHeaderHeight: CGFloat = 48
     static let footerHeight: CGFloat = 34
+    static let conversationMinimumWidth: CGFloat = 260
+    static let conversationDefaultWidth: CGFloat = 300
+    static let conversationMaximumWidth: CGFloat = 560
     static let small = Font.system(size: 12)
     static let body = Font.system(size: 14)
     static let title = Font.system(size: 20, weight: .semibold)
@@ -54,16 +57,46 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
     @ObservedObject var model: AppModel
     @ObservedObject var ai: AIController
     func makeCoordinator() -> Coordinator { Coordinator() }
-    @MainActor final class Coordinator {
-        private let preferences = ProcessInfo.processInfo.arguments.contains("--self-test") ? UserDefaults(suiteName: "PaperReader.LayoutSelfTest")! : .standard
+    @MainActor final class Coordinator: NSObject {
+        static let widthKey = "workspace.conversationWidth.v2"
+        private let preferences: UserDefaults
+        private weak var controller: NSSplitViewController?
+        private var widthConstraint: NSLayoutConstraint?
+        private var restoringWidth = false
+        private(set) var hasPresentedConversation = false
         var conversationWidth: CGFloat
-        init() {
-            let saved = preferences.double(forKey: "workspace.conversationWidth")
-            conversationWidth = saved > 0 ? min(560, max(320, saved)) : 380
+        init(preferences: UserDefaults = ProcessInfo.processInfo.arguments.contains("--self-test") ? UserDefaults(suiteName: "PaperReader.LayoutSelfTest")! : .standard) {
+            self.preferences = preferences
+            let saved = preferences.double(forKey: Self.widthKey)
+            conversationWidth = saved > 0 ? min(Design.conversationMaximumWidth, max(Design.conversationMinimumWidth, saved)) : Design.conversationDefaultWidth
+            super.init()
+        }
+        func install(in controller: NSSplitViewController) {
+            self.controller = controller
+            let constraint = controller.splitViewItems[3].viewController.view.widthAnchor.constraint(equalToConstant: conversationWidth)
+            constraint.priority = .init(249)
+            widthConstraint = constraint
+            NotificationCenter.default.addObserver(self, selector: #selector(splitResized(_:)), name: NSSplitView.didResizeSubviewsNotification, object: controller.splitView)
         }
         func rememberWidth(_ width: CGFloat) {
-            conversationWidth = min(560, max(320, width))
-            preferences.set(conversationWidth, forKey: "workspace.conversationWidth")
+            conversationWidth = min(Design.conversationMaximumWidth, max(Design.conversationMinimumWidth, width))
+            preferences.set(conversationWidth, forKey: Self.widthKey)
+            widthConstraint?.constant = conversationWidth
+        }
+        func restoreWidth(in controller: NSSplitViewController) {
+            hasPresentedConversation = true
+            restoringWidth = true
+            defer { restoringWidth = false }
+            widthConstraint?.constant = conversationWidth
+            widthConstraint?.isActive = true
+            controller.view.layoutSubtreeIfNeeded()
+        }
+        func suspendWidth() { widthConstraint?.isActive = false }
+        @objc private func splitResized(_ notification: Notification) {
+            guard !restoringWidth, widthConstraint?.isActive == true, let controller,
+                  !controller.splitViewItems[3].isCollapsed else { return }
+            let width = controller.splitViewItems[3].viewController.view.frame.width
+            if abs(width - conversationWidth) > 0.5 { rememberWidth(width) }
         }
     }
     func makeNSViewController(context: Context) -> NSSplitViewController {
@@ -73,27 +106,34 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
         controller.splitView.isVertical = true
         controller.splitView.dividerStyle = .thin
         controller.splitView.autosaveName = ProcessInfo.processInfo.arguments.contains("--self-test") ? "PaperReader.Workspace.SelfTest.v2" : "PaperReader.Workspace.v1"
-        let library = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: LibraryTreeView(model: model).workspaceSurface()))
+        let library = NSSplitViewItem(sidebarWithViewController: paneHost(LibraryTreeView(model: model).workspaceSurface()))
         library.allowsFullHeightLayout = false
         library.minimumThickness = 210; library.maximumThickness = 340; library.canCollapse = true
         library.holdingPriority = .init(260)
-        let reader = NSSplitViewItem(viewController: NSHostingController(rootView: ReaderPane(model: model, reader: model.reader).workspaceSurface()))
+        let reader = NSSplitViewItem(viewController: paneHost(ReaderPane(model: model, reader: model.reader).workspaceSurface()))
         reader.minimumThickness = 360; reader.holdingPriority = .init(200)
-        let note = NSSplitViewItem(viewController: NSHostingController(rootView: NotePane(model: model, editor: model.editor).workspaceSurface()))
+        let note = NSSplitViewItem(viewController: paneHost(NotePane(model: model, editor: model.editor).workspaceSurface()))
         note.minimumThickness = 300; note.maximumThickness = 760; note.canCollapse = true
         note.holdingPriority = .init(250)
-        let conversationHost = NSHostingController(rootView: AnyView(AIConversationDrawer(ai: ai).workspaceSurface()))
-        // The split item owns its width. A new quote or model name must not
-        // replace that width with the SwiftUI content's intrinsic fitting size.
-        conversationHost.sizingOptions = []
-        (conversationHost.view as? NSHostingView<AnyView>)?.sizingOptions = []
+        let conversationHost = paneHost(AIConversationDrawer(ai: ai).workspaceSurface())
         let conversation = NSSplitViewItem(viewController: conversationHost)
         conversation.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
-        conversation.minimumThickness = 320; conversation.maximumThickness = 560; conversation.canCollapse = true
+        conversation.minimumThickness = Design.conversationMinimumWidth
+        conversation.maximumThickness = Design.conversationMaximumWidth
+        conversation.canCollapse = true
         conversation.holdingPriority = .init(240); conversation.isCollapsed = true
         controller.addSplitViewItem(library); controller.addSplitViewItem(reader); controller.addSplitViewItem(note)
         controller.addSplitViewItem(conversation)
+        context.coordinator.install(in: controller)
         return controller
+    }
+    private func paneHost<Content: View>(_ content: Content) -> NSHostingController<Content> {
+        // Split items define pane bounds. Content fitting sizes must not cap
+        // the PDF or note pane and leave surplus width in the AI drawer.
+        let host = NSHostingController(rootView: content)
+        host.sizingOptions = []
+        (host.view as? NSHostingView<Content>)?.sizingOptions = []
+        return host
     }
     func updateNSViewController(_ controller: NSSplitViewController, context: Context) {
         let library = controller.splitViewItems[0], note = controller.splitViewItems[2], conversation = controller.splitViewItems[3]
@@ -113,21 +153,12 @@ struct WorkspaceSplit: NSViewControllerRepresentable {
             }
         }
         if conversation.isCollapsed != !ai.expanded {
-            if !ai.expanded { context.coordinator.rememberWidth(conversation.viewController.view.frame.width) }
-            conversation.isCollapsed = !ai.expanded
-            if ai.expanded {
-                controller.view.layoutSubtreeIfNeeded()
-                let split = controller.splitView
-                let leading = split.bounds.maxX - context.coordinator.conversationWidth - split.dividerThickness
-                if !note.isCollapsed {
-                    let readerEnd = leading - note.minimumThickness - split.dividerThickness
-                    if split.arrangedSubviews[1].frame.maxX > readerEnd {
-                        split.setPosition(readerEnd, ofDividerAt: 1)
-                        controller.view.layoutSubtreeIfNeeded()
-                    }
-                }
-                split.setPosition(leading, ofDividerAt: 2)
+            if !ai.expanded && context.coordinator.hasPresentedConversation {
+                context.coordinator.rememberWidth(conversation.viewController.view.frame.width)
             }
+            if !ai.expanded { context.coordinator.suspendWidth() }
+            conversation.isCollapsed = !ai.expanded
+            if ai.expanded { context.coordinator.restoreWidth(in: controller) }
         }
     }
 }

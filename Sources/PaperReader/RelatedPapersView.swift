@@ -92,7 +92,7 @@ struct RelatedPapersView: View {
                 Text("OpenAlex").foregroundStyle(.secondary)
                 if let graph = controller.graph { Text(graph.fetchedAt, style: .date).foregroundStyle(.secondary) }
             }.font(Design.small).padding(16)
-        }.font(Design.body).background(WorkspacePalette.paper).frame(width: 1080, height: 700)
+        }.font(Design.body).background(WorkspacePalette.paper).frame(width: 1000, height: 700)
             .task(id: model.selectedID) { if let paper = model.currentPaper { controller.open(paper, store: model.store) } }
             .onDisappear { controller.cancel() }
     }

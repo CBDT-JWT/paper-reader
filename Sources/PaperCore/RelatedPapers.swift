@@ -39,7 +39,7 @@ public enum RelatedPapersService {
         } else {
             let filename = query.replacingOccurrences(of: #"\.pdf$"#, with: "", options: [.regularExpression, .caseInsensitive])
             let cleaned = filename.replacingOccurrences(of: #"^\d+[_ -]+|[_ -](?:DAC|ICCAD|DATE|ISSCC|CVPR|ICML|ICLR|NeurIPS)[_ -]?\d{4}$"#, with: "", options: [.regularExpression, .caseInsensitive]).replacingOccurrences(of: "_", with: " ")
-            let results = try await fetch(path: "works", items: [.init(name: "search", value: cleaned), .init(name: "per-page", value: "5")])["results"].array.compactMap(decode)
+            let results = try await fetch(path: "works", items: [.init(name: "search", value: cleaned), .init(name: "per_page", value: "5")])["results"].array.compactMap(decode)
             let normalize: (String) -> String = { $0.lowercased().filter { $0.isLetter || $0.isNumber } }
             guard let match = results.first(where: { normalize($0.title).contains(normalize(cleaned)) || normalize(cleaned).contains(normalize($0.title)) }), !cleaned.isEmpty else {
                 throw AIError.message(L("未找到匹配文献，请输入 DOI 或完整论文标题。"))
@@ -48,13 +48,13 @@ public enum RelatedPapersService {
         }
         try Task.checkCancellation()
         let shortID = String(root.id.split(separator: "/").last ?? "")
-        let citing = try await fetch(path: "works", items: [.init(name: "filter", value: "cites:" + shortID), .init(name: "sort", value: "cited_by_count:desc"), .init(name: "per-page", value: "8")])["results"].array.compactMap(decode)
+        let citing = try await fetch(path: "works", items: [.init(name: "filter", value: "cites:" + shortID), .init(name: "sort", value: "cited_by_count:desc"), .init(name: "per_page", value: "8")])["results"].array.compactMap(decode)
         var ids: [String] = [], seen: Set<String> = [root.id]
         for id in Array(root.related.prefix(12)) + Array(root.references.prefix(12)) where seen.insert(id).inserted { ids.append(id) }
         var neighbors: [RelatedPaper] = []
         if !ids.isEmpty {
             let filter = ids.compactMap { $0.split(separator: "/").last.map(String.init) }.joined(separator: "|")
-            neighbors = try await fetch(path: "works", items: [.init(name: "filter", value: "openalex:" + filter), .init(name: "per-page", value: "30")])["results"].array.compactMap(decode)
+            neighbors = try await fetch(path: "works", items: [.init(name: "filter", value: "openalex:" + filter), .init(name: "per_page", value: "30")])["results"].array.compactMap(decode)
         }
         var papers = [root], included: Set<String> = [root.id]
         for paper in neighbors + citing where included.insert(paper.id).inserted { papers.append(paper) }

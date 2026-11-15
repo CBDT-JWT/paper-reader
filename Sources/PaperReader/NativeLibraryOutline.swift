@@ -194,7 +194,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
                 menu.addItem(action(L("重命名…")) { [model] in model.renameFolder(folder) })
             } else if let paper = item.paper {
                 menu.addItem(action(L("打开论文")) { [model] in Task { await model.select(paper.id) } })
-                menu.addItem(action(L("关联文献…")) { [model] in Task { await model.select(paper.id); model.commands.run(.relatedPapers) } })
+                menu.addItem(action(L("关联文献…")) { [model] in Task { await model.select(paper.id); if model.selectedID == paper.id { model.commands.run(.relatedPapers) } } })
                 menu.addItem(action(L("AI 识别期刊 / 会议")) { [model] in model.venueEnrichment.enqueue([paper.id], force: true) })
                 menu.addItem(action(L("重命名…")) { [model] in model.rename(paper) })
             }

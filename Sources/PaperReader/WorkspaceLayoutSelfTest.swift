@@ -137,8 +137,8 @@ import PaperCore
         outline.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         try await settle()
         guard let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? NSTableCellView else { throw IntegrationSelfTest.Failure(message: "Folder cell missing") }
-        try check(cell.backgroundStyle == .emphasized && cell.textField?.textColor == NSColor.white && cell.imageView?.contentTintColor == NSColor.white,
-                  "Selected folder text and icon use white against the blue row")
+        try check(cell.backgroundStyle == .normal && cell.textField?.textColor == NSColor.labelColor && cell.imageView?.contentTintColor == WorkspacePalette.accentNS,
+                  "Selected folder text follows label color with an accent icon against a pale selection")
         try snapshot(window, to: output.appendingPathComponent("fullscreen-folder.png"))
         try await IntegrationSelfTest.setFullScreen(false, window: window)
         try await settle()

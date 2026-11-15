@@ -17,7 +17,7 @@ enum WorkspacePalette {
     static let sidebarNS = adaptive("sidebar", light: 0xFFFFFF, dark: 0x24272D)
     static let canvasNS = adaptive("canvas", light: 0xFFFFFF, dark: 0x191B20)
     static let selectionNS = adaptive("selection", light: 0xCFDCF2, dark: 0x304D7B)
-    static let selectedRowNS = adaptive("selectedRow", light: 0x315FAD, dark: 0x304D7B)
+    static let selectedRowNS = adaptive("selectedRow", light: 0xDCE8F8, dark: 0x304D7B)
     static let amberNS = adaptive("amber", light: 0xA36912, dark: 0xF2BC60)
     static let toolbarNS = adaptive("toolbar", light: 0xEDF3FC, dark: 0x273247)
     static let toolbar = Color(nsColor: toolbarNS)

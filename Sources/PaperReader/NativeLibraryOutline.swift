@@ -230,10 +230,9 @@ struct NativeLibraryOutline: NSViewRepresentable {
     var normalIconColor = WorkspacePalette.accentNS { didSet { updateColors() } }
     override var backgroundStyle: NSView.BackgroundStyle { didSet { updateColors() } }
     private func updateColors() {
-        let selected = backgroundStyle == .emphasized
-        title.textColor = selected ? .white : .labelColor
-        detail.textColor = selected ? NSColor.white.withAlphaComponent(0.85) : .secondaryLabelColor
-        icon.contentTintColor = selected ? .white : normalIconColor
+        title.textColor = .labelColor
+        detail.textColor = .secondaryLabelColor
+        icon.contentTintColor = normalIconColor
     }
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -255,5 +254,5 @@ struct NativeLibraryOutline: NSViewRepresentable {
         WorkspacePalette.selectedRowNS.setFill()
         NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: Design.radius, yRadius: Design.radius).fill()
     }
-    override var interiorBackgroundStyle: NSView.BackgroundStyle { isSelected ? .emphasized : .normal }
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
 }

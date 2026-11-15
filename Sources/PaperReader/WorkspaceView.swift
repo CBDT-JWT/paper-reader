@@ -28,13 +28,11 @@ struct WorkspaceView: View {
             .toolbarBackground(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
-                    Button { model.commands.run(.sidebar) } label: { Image(systemName: "sidebar.left").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("文献库"))
                     Button { model.commands.run(.open) } label: { Image(systemName: "plus").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("导入 PDF"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                     label: { Image(systemName: "square.and.arrow.up").foregroundStyle(WorkspacePalette.accent) }.menuIndicator(.hidden).help(L("笔记与文件"))
-                    Button { model.commands.run(.notes) } label: { Image(systemName: "sidebar.right").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("笔记"))
                 }
             }
             .alert("Paper Reader", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
@@ -317,6 +315,8 @@ private struct NotePane: View {
                 Spacer()
                 Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .insertImage, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
                 label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 30, height: 30)
+                Button { model.commands.run(.notes) } label: { Image(systemName: "chevron.right") }
+                    .buttonStyle(WorkspaceIconStyle()).help(L("收起笔记")).accessibilityIdentifier("note.collapse")
             }.padding(.horizontal, 20).frame(height: Design.paneHeaderHeight).background(WorkspacePalette.chrome)
             HStack(spacing: 4) {
                 Menu {

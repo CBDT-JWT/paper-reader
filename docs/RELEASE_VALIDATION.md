@@ -4,7 +4,15 @@
 
 
 
-## Current release 0.4.11 / build 16
+## Current release 0.4.12 / build 17
+
+Published [v0.4.12](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.12) from `3cbb931`. The optimized application compiled. Application notarization `a208e4b4-49c5-4dc6-8cb5-b54bf48442d4` and DMG notarization `9cf150f2-ebd8-4a5f-a4de-c2e02e894888` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,303,626-byte DMG SHA-256 is `3a4aa44fa87ec6f371a8214b803bc47c9472928fc2d52d9fc0606a77759a7136`. Live website metadata and build-17 update feed match the repository, and Sparkle's verifier accepts the live feed signature.
+
+Validation passed 24 editor tests and 18 focused native WKWebView checks in each of Chinese and English using disposable libraries. Checks drive the normal text-input and paste handlers, verify KaTeX and computed bold/italic styles, reopen and edit typed equation source, undo the change, preserve code-context dollars, dispatch composition events, save through the native note pipeline and reopen the actual saved Markdown. Additional editor regressions cover adjacent equations, escaped dollars within LaTeX, paste undo/redo, read-only/code/rich-HTML paste and existing Markdown/resource round-trips. See [inline-input evidence](WORKSPACE_FIXES.md).
+
+Physical keyboard input-method candidate-window interaction, full-window visual inspection and actual installation/relaunch remain unverified. The installed app was still 0.4.11 during publication. Dependency versions are unchanged.
+
+## Historical release 0.4.11 / build 16
 
 Published [v0.4.11](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.11) from `ff1a0dc`. The optimized application compiled. Application notarization `390a7578-b88c-4278-82b2-4c98fccc892c` and DMG notarization `b1900297-c226-4f35-a784-c5269799e771` were Accepted. Both artifacts were stapled and passed Gatekeeper assessment. The 11,289,282-byte DMG SHA-256 is `e842eb429c37b66b85c61a30b7e7367fd39e05556e9b38c3540899459b11d08b`. The initial notarization attempt could not access the PaperReader profile. Publication resumed after the local keychain was unlocked.
 

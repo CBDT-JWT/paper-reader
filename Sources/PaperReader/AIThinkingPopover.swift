@@ -4,6 +4,7 @@ import PaperCore
 struct AIThinkingPopover: View {
     @ObservedObject var settings: AISettings
     @State private var choosingModel = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         Group {
             if choosingModel {
@@ -24,9 +25,13 @@ struct AIThinkingPopover: View {
                         }
                         Text(settings.thinkingTitle).font(Design.body).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
                             .foregroundStyle(settings.thinkingIndex == nil ? Color.secondary : WorkspacePalette.accent)
+                            .contentTransition(.opacity)
                             .overlay {
-                                if settings.maximumThinking { RainbowMetalFill().mask(Text(settings.thinkingTitle).font(Design.body).fontWeight(.semibold).lineLimit(1)) }
+                                RainbowMetalFill().mask(Text(settings.thinkingTitle).font(Design.body).fontWeight(.semibold).lineLimit(1))
+                                    .opacity(settings.maximumThinking ? 1 : 0)
+                                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.32), value: settings.maximumThinking)
                             }.frame(maxWidth: .infinity).accessibilityAddTraits(.isHeader)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: settings.thinkingTitle)
                         Button { settings.resetGenerationOptions() } label: { Image(systemName: "arrow.counterclockwise").foregroundStyle(.secondary) }
                             .buttonStyle(WorkspaceIconStyle()).help(L("恢复默认生成设置")).accessibilityLabel(L("恢复默认生成设置"))
                             .accessibilityIdentifier("ai.options.reset")
@@ -49,7 +54,10 @@ struct AIThinkingPopover: View {
 
 private struct AIEffortBar: View {
     @ObservedObject var settings: AISettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focused: Bool
+    @State private var dragFraction: CGFloat?
+    @State private var usingPointer = false
     var body: some View {
         GeometryReader { geometry in
             let radius: CGFloat = 14
@@ -57,31 +65,53 @@ private struct AIEffortBar: View {
             let steps = settings.thinkingStops
             let count = max(1, steps.count - 1)
             let selected = settings.thinkingIndex
-            let selectedX = radius + CGFloat(selected ?? 0) / CGFloat(count) * length
+            let fraction = dragFraction ?? CGFloat(selected ?? 0) / CGFloat(count)
+            let selectedX = radius + fraction * length
+            let active = selected != nil || dragFraction != nil
+            let positionAnimation: Animation? = reduceMotion || dragFraction != nil ? nil : .spring(response: 0.28, dampingFraction: 0.90)
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.08)).frame(height: 24)
-                if selected != nil {
-                    Capsule().fill(WorkspacePalette.accent).frame(width: selectedX, height: 24)
-                    if settings.maximumThinking { RainbowMetalFill().clipShape(Capsule()).frame(height: 24) }
-                }
+                Capsule().fill(Color.primary.opacity(0.07)).frame(height: 24)
+                LinearGradient(colors: [WorkspacePalette.accent.opacity(0.85), WorkspacePalette.accent], startPoint: .leading, endPoint: .trailing)
+                    .overlay {
+                        RainbowMetalFill().opacity(settings.maximumThinking ? 1 : 0)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 0.34), value: settings.maximumThinking)
+                    }
+                    .frame(width: geometry.size.width, height: 24)
+                    .mask(alignment: .leading) { Capsule().frame(width: selectedX, height: 24) }
+                    .opacity(active ? 1 : 0)
+                    .animation(positionAnimation, value: fraction)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: active)
                 ForEach(steps.indices, id: \.self) { index in
-                    Circle().fill((selected.map { index <= $0 } ?? false) ? Color.white.opacity(0.55) : Color.primary.opacity(0.22))
+                    Circle().fill((selected.map { index <= $0 } ?? false) ? Color.white.opacity(0.55) : Color.primary.opacity(0.20))
                         .frame(width: 4, height: 4).position(x: radius + CGFloat(index) / CGFloat(count) * length, y: geometry.size.height / 2)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: selected)
                 }
-                if selected != nil {
-                    Circle().fill(WorkspacePalette.paper)
-                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.10), lineWidth: 1))
-                        .frame(width: 28, height: 28).position(x: selectedX, y: geometry.size.height / 2)
-                }
+                Circle().fill(WorkspacePalette.paper)
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.08), radius: 1.5, x: 0, y: 1)
+                    .frame(width: 28, height: 28).position(x: selectedX, y: geometry.size.height / 2)
+                    .opacity(active ? 1 : 0)
+                    .animation(positionAnimation, value: fraction)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: active)
             }.frame(maxHeight: .infinity).contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                    usingPointer = true
                     focused = true
+                    if abs(value.translation.width) > 2 || dragFraction != nil {
+                        let fraction = min(1, max(0, (value.location.x - radius) / length))
+                        dragFraction = fraction
+                        settings.selectThinking(min(steps.count - 1, Int((fraction * CGFloat(count)).rounded())))
+                    }
+                }.onEnded { value in
                     let fraction = min(1, max(0, (value.location.x - radius) / length))
                     settings.selectThinking(min(steps.count - 1, Int((fraction * CGFloat(count)).rounded())))
+                    dragFraction = nil
                 })
         }.frame(height: 32).focusable().focused($focused).focusEffectDisabled()
-            .overlay(RoundedRectangle(cornerRadius: Design.radius).strokeBorder(focused ? WorkspacePalette.accent.opacity(0.6) : .clear, lineWidth: 2).padding(-3))
+            .overlay(RoundedRectangle(cornerRadius: Design.radius).strokeBorder(focused && !usingPointer ? WorkspacePalette.accent.opacity(0.6) : .clear, lineWidth: 2).padding(-3))
+            .onChange(of: focused) { _, active in if !active { usingPointer = false } }
             .onMoveCommand { direction in
+                usingPointer = false
                 if direction == .left || direction == .down { adjust(-1) }
                 if direction == .right || direction == .up { adjust(1) }
             }
@@ -97,37 +127,25 @@ private struct AIEffortBar: View {
     }
 }
 
-/// Diagonal rainbow stripes with a static metallic highlight mark the highest setting.
+/// Soft diagonal color bands and a broad satin highlight share the same coordinate space.
 private struct RainbowMetalFill: View {
     private let colors: [Color] = [
-        Color(red: 0.89, green: 0.01, blue: 0.01), Color(red: 1, green: 0.55, blue: 0),
-        Color(red: 1, green: 0.93, blue: 0), Color(red: 0, green: 0.50, blue: 0.15),
-        Color(red: 0, green: 0.30, blue: 1), Color(red: 0.46, green: 0.03, blue: 0.53)
+        Color(red: 0.94, green: 0.35, blue: 0.40), Color(red: 0.98, green: 0.64, blue: 0.32),
+        Color(red: 0.96, green: 0.84, blue: 0.43), Color(red: 0.39, green: 0.73, blue: 0.59),
+        Color(red: 0.40, green: 0.63, blue: 0.93), Color(red: 0.67, green: 0.48, blue: 0.85)
     ]
     var body: some View {
         Canvas { context, size in
-            let stripeWidth = max(10, size.width / 6)
-            let lastStripe = Int(ceil((size.width + size.height) / stripeWidth))
-            let firstStripe = -Int(ceil(size.height / stripeWidth)) - 1
-            for index in firstStripe...lastStripe {
-                let x = CGFloat(index) * stripeWidth
-                var stripe = Path()
-                stripe.move(to: CGPoint(x: x, y: size.height))
-                stripe.addLine(to: CGPoint(x: x + stripeWidth, y: size.height))
-                stripe.addLine(to: CGPoint(x: x + stripeWidth + size.height, y: 0))
-                stripe.addLine(to: CGPoint(x: x + size.height, y: 0))
-                stripe.closeSubpath()
-                let colorIndex = ((index % colors.count) + colors.count) % colors.count
-                context.fill(stripe, with: .color(colors[colorIndex]))
-            }
+            let span = max(1, (size.width + size.height) / 2)
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
+                Gradient(colors: colors), startPoint: .zero, endPoint: CGPoint(x: span, y: span)))
         }.overlay {
             LinearGradient(stops: [
-                .init(color: .white.opacity(0.40), location: 0),
-                .init(color: .white.opacity(0.04), location: 0.30),
-                .init(color: .white.opacity(0.52), location: 0.46),
-                .init(color: .white.opacity(0.08), location: 0.55),
-                .init(color: .black.opacity(0.16), location: 0.76),
-                .init(color: .white.opacity(0.08), location: 1)
+                .init(color: .white.opacity(0.25), location: 0),
+                .init(color: .white.opacity(0.06), location: 0.24),
+                .init(color: .white.opacity(0.30), location: 0.48),
+                .init(color: .white.opacity(0.08), location: 0.72),
+                .init(color: .black.opacity(0.05), location: 1)
             ], startPoint: .top, endPoint: .bottom)
         }.allowsHitTesting(false).accessibilityHidden(true)
     }

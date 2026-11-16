@@ -44,6 +44,9 @@
 "上方行数：%@" = "Lines above: %@";
 "下一页" = "Next page";
 "下方行数：%@" = "Lines below: %@";
+"下载并导入" = "Download and import";
+"下载来源" = "Download source";
+"不支持的检索来源。" = "Unsupported search source.";
 "不支持的编辑器操作" = "Unsupported editor operation";
 "与“%@”冲突。" = "Conflicts with “%@”.";
 "与相连节点最多共享 %@ 篇参考文献" = "Shares up to %@ references with connected papers";
@@ -52,10 +55,13 @@
 "云端 API" = "Cloud API";
 "从工作区移除（保留原 PDF）" = "Remove from workspace (keep original PDF)";
 "从这篇论文开始" = "Start with this paper";
+"从链接导入论文" = "Import paper from link";
+"从链接导入论文…" = "Import Paper from Link…";
 "代码块" = "Code block";
 "以此为中心" = "Explore from this paper";
 "任务列表" = "Task list";
 "低" = "Low";
+"作者接受稿" = "Accepted manuscript";
 "作者（分号分隔）" = "Authors (separate with semicolons)";
 "使用 Agent 自身的登录配置。请先在终端完成登录。需要已安装的 CLI，并支持当前协议。" = "Uses the agent’s own login configuration. Sign in through its CLI first. An installed CLI with protocol support is required.";
 "使用文件版本" = "Use file version";
@@ -64,6 +70,7 @@
 "使用默认模型" = "Use default model";
 "使用默认设置" = "Use defaults";
 "保存" = "Save";
+"保存到" = "Save to";
 "保存失败 · 请保留窗口并检查磁盘" = "Save failed · Keep this window open and check your disk";
 "保存笔记" = "Save note";
 "保存设置" = "Save settings";
@@ -81,6 +88,7 @@
 "关闭" = "Close";
 "关闭思考" = "No reasoning";
 "关闭窗口" = "Close window";
+"出版版本" = "Published version";
 "删除线" = "Strikethrough";
 "卷" = "Volume";
 "原始文件夹不是空的。请先移动其中的文件，或在 Finder 中管理。" = "The original folder is not empty. Move its files first, or manage it in Finder.";
@@ -103,10 +111,11 @@
 "完成" = "Done";
 "导入" = "Import";
 "导入 Markdown…" = "Import Markdown…";
-"导入 PDF" = "Import PDF";
 "导入 PDF 到此文件夹…" = "Import PDFs into this folder…";
+"导入 PDF 或论文链接" = "Import a PDF or paper link";
 "导入 PDF…" = "Import PDF…";
 "导入时间" = "Import date";
+"导入论文" = "Import papers";
 "导出 Markdown 与资源…" = "Export Markdown and assets…";
 "导出包含 note.md 和 assets 的独立文件夹" = "Export a separate folder containing note.md and assets";
 "导出带批注的 PDF…" = "Export annotated PDF…";
@@ -127,6 +136,7 @@
 "年份" = "Year";
 "应用" = "Apply";
 "应用修改" = "Apply changes";
+"开放版本" = "Open-access copy";
 "引用" = "Block quote";
 "引用关系" = "Citations";
 "引用当前笔记" = "Quote current note";
@@ -156,6 +166,7 @@
 "打开工作区笔记" = "Open workspace note";
 "打开文件夹…" = "Open Folder…";
 "打开文件夹后，整个工作区共用根目录的一份 Markdown；图片保存在 assets，批注直接写入 PDF。" = "An opened folder uses one Markdown note at its root, images in assets, and annotations written directly into the PDF.";
+"打开来源网页" = "Open source page";
 "打开示例论文" = "Open example paper";
 "打开论文" = "Open paper";
 "扫描页面使用区域聚焦；可手动指定阅读栏。" = "Scanned page: using region focus. You can choose a reading column manually.";
@@ -246,6 +257,7 @@
 "正在打开本地文献库…" = "Opening local library…";
 "正在渲染 PDF 区域…" = "Rendering PDF region…";
 "正在生成回答…" = "Generating an answer…";
+"正在解析并下载论文…" = "Resolving and downloading paper…";
 "正在读取论文上下文…" = "Reading paper context…";
 "正在连接 Codex…" = "Connecting to Codex…";
 "每分钟 %@ 行" = "%@ lines/min";
@@ -274,6 +286,7 @@
 "等待 iCloud Drive" = "Waiting for iCloud Drive";
 "类型" = "Type";
 "粗体" = "Bold";
+"粘贴 arXiv、IEEE、DOI 或 PDF 链接" = "Paste an arXiv, IEEE, DOI or PDF link";
 "绘制直线" = "Draw line";
 "绘制矩形" = "Draw rectangle";
 "给下一篇论文，留一处思考的空间。" = "A place to think through your next paper.";
@@ -300,11 +313,13 @@
 "论文原文 · 第 %@ 页" = "Paper text · Page %@";
 "论文对话" = "Paper conversation";
 "论文已切换，请在当前笔记中重新导出。" = "The paper changed. Export again from the current note.";
+"论文来源" = "Paper source";
 "论文目录" = "Paper outline";
 "设置已保存" = "Settings saved";
 "访问官网" = "Visit website";
 "询问 AI" = "Ask AI";
 "询问论文或当前选区…" = "Ask about the paper or selection…";
+"该来源未返回可访问的 PDF，可打开来源网页下载后导入。" = "This source did not return an accessible PDF. Open the source page to download and import it.";
 "该组合保留给 macOS 标准命令。" = "This shortcut is reserved for a standard macOS command.";
 "该组合保留给 macOS 隐藏或最小化窗口。" = "This shortcut is reserved for hiding or minimizing windows.";
 "该组合保留给系统截图或重做。" = "This shortcut is reserved for system screenshots or Redo.";
@@ -353,6 +368,7 @@
 "阅读笔记" = "Reading notes";
 "阅读聚焦" = "Reading focus";
 "页码" = "Pages";
+"预印本版本" = "Preprint version";
 "高" = "High";
 "高亮" = "Highlight";
 "高亮选中文字" = "Highlight selected text";

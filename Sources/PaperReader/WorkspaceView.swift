@@ -28,7 +28,11 @@ struct WorkspaceView: View {
             .toolbarBackground(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
-                    Button { model.commands.run(.open) } label: { Image(systemName: "plus").foregroundStyle(WorkspacePalette.accent) }.buttonStyle(.automatic).help(L("导入 PDF"))
+                    Menu {
+                        RegisteredCommandButton(registry: model.commands, id: .open)
+                        RegisteredCommandButton(registry: model.commands, id: .importPaperLink)
+                    } label: { Label(L("导入论文"), systemImage: "square.and.arrow.down").labelStyle(.titleAndIcon).foregroundStyle(WorkspacePalette.accent) }
+                        .menuIndicator(.hidden).help(L("导入 PDF 或论文链接"))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu { ForEach([CommandID.save, .importMarkdown, .exportMarkdown, .exportPDF, .exportAnnotated, .metadata, .relatedPapers, .outline, .noteWindow, .revealFiles]) { RegisteredCommandButton(registry: model.commands, id: $0) } }
@@ -47,6 +51,7 @@ struct WorkspaceView: View {
                 }
             } message: { Text(L(model.error ?? "")) }
             .sheet(item: $model.libraryNameRequest) { request in LibraryNameSheet(model: model, request: request) }
+            .sheet(isPresented: $model.paperLinkImportPresented) { PaperLinkImport(model: model) }
             .sheet(isPresented: $model.relatedPapersPresented) { RelatedPapersView(model: model) }
             .sheet(isPresented: $model.metadataPresented) { MetadataPanel(model: model) }
     }

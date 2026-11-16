@@ -5,7 +5,7 @@ import Combine
 
 enum CommandID: String, CaseIterable, Codable, Identifiable {
     case newFolder, focus, focusAutomatic, highlight, selectText, drawLine, drawRectangle, drawing, laser, undoAnnotation, redoAnnotation, exportAnnotated, metadata, relatedPapers, askAI, outline, noteWindow
-    case open, openFolder, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
+    case open, importPaperLink, openFolder, demo, save, importMarkdown, exportMarkdown, exportPDF, insertImage
     case capture, quote, zoomIn, zoomOut, fit, nextPage, previousPage, sidebar, notes, revealFiles
     var id: String { rawValue }
     var title: String {
@@ -29,6 +29,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .noteWindow: L("独立查看笔记")
         case .openFolder: L("打开文件夹…")
         case .open: L("导入 PDF…")
+        case .importPaperLink: L("从链接导入论文…")
         case .demo: L("打开示例论文")
         case .save: L("保存笔记")
         case .importMarkdown: L("导入 Markdown…")
@@ -68,6 +69,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         case .noteWindow: "arrow.up.right.square"
         case .openFolder: "folder"
         case .open: "plus"
+        case .importPaperLink: "link.badge.plus"
         case .demo: "doc.text"
         case .save: "checkmark.circle"
         case .importMarkdown: "square.and.arrow.down"
@@ -86,7 +88,7 @@ enum CommandID: String, CaseIterable, Codable, Identifiable {
         }
     }
     var needsNote: Bool { [.save, .importMarkdown, .exportMarkdown, .exportPDF, .insertImage, .noteWindow, .revealFiles].contains(self) }
-    var needsPaper: Bool { ![.open, .openFolder, .demo, .newFolder, .sidebar, .notes].contains(self) }
+    var needsPaper: Bool { ![.open, .importPaperLink, .openFolder, .demo, .newFolder, .sidebar, .notes].contains(self) }
 }
 
 struct CommandShortcut: Codable, Equatable {
@@ -203,6 +205,7 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             RegisteredCommandButton(registry: registry, id: .open)
+            RegisteredCommandButton(registry: registry, id: .importPaperLink)
             RegisteredCommandButton(registry: registry, id: .openFolder)
             RegisteredCommandButton(registry: registry, id: .demo)
         }

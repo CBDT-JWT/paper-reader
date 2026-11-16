@@ -191,6 +191,7 @@ struct NativeLibraryOutline: NSViewRepresentable {
             if let folder = item.folder {
                 menu.addItem(action(L("新建子文件夹…")) { [model] in model.createFolder(parentID: folder.id) })
                 menu.addItem(action(L("导入 PDF 到此文件夹…")) { [model] in model.activeFolderID = folder.id; model.openPanel() })
+                menu.addItem(action(L("从链接导入论文…")) { [model] in model.activeFolderID = folder.id; model.commands.run(.importPaperLink) })
                 menu.addItem(action(L("重命名…")) { [model] in model.renameFolder(folder) })
             } else if let paper = item.paper {
                 menu.addItem(action(L("打开论文")) { [model] in Task { await model.select(paper.id) } })

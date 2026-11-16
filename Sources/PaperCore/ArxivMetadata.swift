@@ -17,6 +17,22 @@ public extension MetadataService {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return try decodeArxiv(data)
     }
+    static func searchArxiv(query: String) async throws -> [Bibliography] {
+        let words = query.split(whereSeparator: \.isWhitespace).prefix(12).map(String.init)
+        guard !words.isEmpty else { throw AIError.message(L("搜索词不能为空。")) }
+        await ArxivRateLimiter.shared.wait()
+        try Task.checkCancellation()
+        var url = URLComponents(string: "https://export.arxiv.org/api/query")!
+        url.queryItems = [.init(name: "search_query", value: words.map { "all:" + $0 }.joined(separator: " AND ")), .init(name: "max_results", value: "8")]
+        var request = URLRequest(url: url.url!); request.timeoutInterval = 30
+        request.setValue("PaperReader/0.4.18 (research metadata)", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        let delegate = ArxivParser(), parser = XMLParser(data: data)
+        parser.shouldResolveExternalEntities = false; parser.delegate = delegate
+        guard parser.parse() else { throw URLError(.cannotParseResponse) }
+        return delegate.results
+    }
     static func decodeArxiv(_ data: Data) throws -> Bibliography {
         let delegate = ArxivParser(); let parser = XMLParser(data: data)
         parser.shouldResolveExternalEntities = false; parser.delegate = delegate
@@ -26,9 +42,10 @@ public extension MetadataService {
 }
 private final class ArxivParser: NSObject, XMLParserDelegate {
     var value = Bibliography(venue: "arXiv", kind: "preprint", origin: "arXiv")
+    var results: [Bibliography] = []
     var entry = false, current = "", buffer = ""
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String]) {
-        if elementName == "entry" { entry = true }
+        if elementName == "entry" { entry = true; value = Bibliography(venue: "arXiv", kind: "preprint", origin: "arXiv") }
         current = elementName; buffer = ""
     }
     func parser(_ parser: XMLParser, foundCharacters string: String) { if entry { buffer += string } }
@@ -43,13 +60,15 @@ private final class ArxivParser: NSObject, XMLParserDelegate {
         case "name":
             let names = text.split(separator: " "); if let family = names.last { value.authors.append(String(family) + (names.count > 1 ? ", " + names.dropLast().joined(separator: " ") : "")) }
         case "arxiv:doi": value.doi = text
-        case "entry": entry = false
+        case "entry":
+            if !value.title.isEmpty, value.arxivID != nil { results.append(value) }
+            entry = false
         default: break
         }
         buffer = ""
     }
 }
-private actor ArxivRateLimiter {
+actor ArxivRateLimiter {
     static let shared = ArxivRateLimiter()
     private var next = Date.distantPast
     func wait() async {

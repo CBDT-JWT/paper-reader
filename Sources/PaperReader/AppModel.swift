@@ -44,6 +44,8 @@ import PaperCore
     }
     @Published var workspaceNoteURL: URL?
     @Published var folders: [LibraryFolder] = []
+    @Published var paperLinkImportPresented = false
+    var paperLinkImportFolder: UUID?
     @Published var metadataPresented = false
     @Published var relatedPapersPresented = false
     @Published var venueStatus: [UUID: String] = [:]
@@ -412,6 +414,10 @@ import PaperCore
         } catch { self.error = error.localizedDescription }
     }
     func openLink(_ url: URL) async {
+        if url.scheme == "paperreader", url.host == "paper" {
+            if let id = UUID(uuidString: url.lastPathComponent), papers.contains(where: { $0.id == id }) { await select(id) }
+            return
+        }
         if url.scheme == "paperreader", url.host == "file" {
             do {
                 guard let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "path" })?.value else { throw LibraryError.invalidPath }
@@ -551,6 +557,7 @@ import PaperCore
         if runResearchCommand(command) { return }
         switch command {
         case .newFolder, .focus, .focusAutomatic, .highlight, .selectText, .drawLine, .drawRectangle, .drawing, .laser, .undoAnnotation, .redoAnnotation, .exportAnnotated, .metadata, .relatedPapers, .askAI, .outline, .noteWindow: break
+        case .importPaperLink: paperLinkImportFolder = activeFolderID; paperLinkImportPresented = true
         case .open: openPanel()
         case .openFolder: openWorkspaceAction?()
         case .demo: Task { await openDemo() }
@@ -626,7 +633,7 @@ import PaperCore
 
 }
 
-private enum PDFValidation {
+enum PDFValidation {
     static func isValid(_ url: URL) -> Bool {
         guard let document = CGPDFDocument(url as CFURL) else { return false }
         return document.numberOfPages > 0 && !document.isEncrypted

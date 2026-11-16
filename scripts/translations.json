@@ -387,5 +387,22 @@
   "更多生成选项": "More generation options",
   "读取模型或输入模型名称。": "Load models or enter a model name.",
   "返回": "Back",
-  "选择模型与提供方": "Choose model and provider"
+  "选择模型与提供方": "Choose model and provider",
+  "下载并导入": "Download and import",
+  "下载来源": "Download source",
+  "不支持的检索来源。": "Unsupported search source.",
+  "从链接导入论文": "Import paper from link",
+  "从链接导入论文…": "Import Paper from Link…",
+  "作者接受稿": "Accepted manuscript",
+  "保存到": "Save to",
+  "出版版本": "Published version",
+  "导入 PDF 或论文链接": "Import a PDF or paper link",
+  "导入论文": "Import papers",
+  "开放版本": "Open-access copy",
+  "打开来源网页": "Open source page",
+  "正在解析并下载论文…": "Resolving and downloading paper…",
+  "粘贴 arXiv、IEEE、DOI 或 PDF 链接": "Paste an arXiv, IEEE, DOI or PDF link",
+  "论文来源": "Paper source",
+  "该来源未返回可访问的 PDF，可打开来源网页下载后导入。": "This source did not return an accessible PDF. Open the source page to download and import it.",
+  "预印本版本": "Preprint version"
 }

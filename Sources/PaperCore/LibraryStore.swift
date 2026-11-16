@@ -71,39 +71,50 @@ public actor LibraryStore {
         return records.sorted { $0.importedAt > $1.importedAt }
     }
 
-    public func importPDF(from url: URL, folderID: UUID? = nil) throws -> Paper {
+    public func importPDF(from url: URL, folderID: UUID? = nil, sourceURL: URL? = nil, downloadURL: URL? = nil, sourceVersion: String? = nil) throws -> Paper {
         if let folderID, try !folders().contains(where: { $0.id == folderID }) { throw LibraryError.invalidPath }
+        try Task.checkCancellation()
         let prefix = try FileHandle(forReadingFrom: url)
         let header = try prefix.read(upToCount: 1024) ?? Data(); try prefix.close()
         guard String(decoding: header, as: UTF8.self).contains("%PDF-") else { throw LibraryError.invalidPDF }
         var paper = Paper(title: url.deletingPathExtension().lastPathComponent)
         paper.fileName = url.lastPathComponent; paper.folderID = folderID
+        paper.importedFrom = sourceURL; paper.downloadedFrom = downloadURL; paper.sourceVersion = sourceVersion
         var target = directory(paper.id).appendingPathComponent("paper.pdf")
-        var needsCopy = true
         if let documentsRoot {
-            let prefix = documentsRoot.standardizedFileURL.path + "/"
-            if url.standardizedFileURL.path.hasPrefix(prefix), !url.path.hasPrefix(root.path + "/") {
-                let path = String(url.standardizedFileURL.path.dropFirst(prefix.count))
-                if let existing = try papers().first(where: { $0.sourceRelativePath == path }) { return existing }
-                paper.sourceRelativePath = path; target = url; needsCopy = false
-            } else {
-                var groups = try folders()
-                let path = try sourceFolderPath(folderID, groups: &groups)
-                try saveFolders(groups)
-                let base = path.isEmpty ? documentsRoot : try Self.containedURL(path, in: documentsRoot)
-                var candidate = base.appendingPathComponent(url.lastPathComponent)
-                var suffix = 2
-                while FileManager.default.fileExists(atPath: candidate.path) {
-                    candidate = base.appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-\(suffix).pdf"); suffix += 1
-                }
-                target = candidate; paper.fileName = candidate.lastPathComponent
-                paper.sourceRelativePath = String(candidate.path.dropFirst(documentsRoot.path.count + 1))
+            var groups = try folders()
+            let path = try sourceFolderPath(folderID, groups: &groups)
+            try saveFolders(groups)
+            let base = path.isEmpty ? documentsRoot : try Self.containedURL(path, in: documentsRoot)
+            var candidate = base.appendingPathComponent(url.lastPathComponent)
+            var suffix = 2
+            while FileManager.default.fileExists(atPath: candidate.path) {
+                candidate = base.appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-\(suffix).pdf"); suffix += 1
             }
+            target = candidate; paper.fileName = candidate.lastPathComponent
+            paper.sourceRelativePath = String(candidate.path.dropFirst(documentsRoot.path.count + 1))
         }
         let directory = directory(paper.id)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let staging = target.deletingLastPathComponent().appendingPathComponent(".paper-reader-import-" + paper.id.uuidString + ".pdf")
+        defer { try? FileManager.default.removeItem(at: staging) }
         do {
-            if needsCopy { try CoordinatedFiles.copy(url, to: target) }
+            try CoordinatedFiles.copy(url.resolvingSymlinksInPath(), to: staging)
+            try Task.checkCancellation()
+            var suffix = 2
+            while true {
+                do { try CoordinatedFiles.move(staging, to: target); break }
+                catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileWriteFileExistsError {
+                    guard documentsRoot != nil else { throw error }
+                    target = target.deletingLastPathComponent().appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-\(suffix).pdf")
+                    suffix += 1
+                }
+            }
+            if let documentsRoot {
+                paper.fileName = target.lastPathComponent
+                paper.title = target.deletingPathExtension().lastPathComponent
+                paper.sourceRelativePath = String(target.path.dropFirst(documentsRoot.path.count + 1))
+            }
             if documentsRoot == nil { try CoordinatedFiles.write(Data("# \(paper.title)\n\n".utf8), to: noteURL(paper.id)) }
             try persist(paper)
         } catch { try? FileManager.default.removeItem(at: directory); throw error }

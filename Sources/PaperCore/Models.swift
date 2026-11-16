@@ -11,6 +11,9 @@ public struct Paper: Codable, Identifiable, Sendable, Equatable {
     public var folderID: UUID?
     public var readingPoint: PDFPoint?
     public var metadata: Bibliography?
+    public var importedFrom: URL?
+    public var downloadedFrom: URL?
+    public var sourceVersion: String?
     public var scale: Double
     public init(id: UUID = UUID(), title: String, importedAt: Date = .now, page: Int = 0, scale: Double = 0) {
         self.id = id; self.title = title; self.importedAt = importedAt; self.page = page; self.scale = scale

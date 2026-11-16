@@ -29,6 +29,13 @@ struct MetadataPanel: View {
                     .disabled(!model.ai.settings.configuration.isAvailable)
                 if let id = model.selectedID { Text(model.venueStatus[id] ?? "").font(Design.small).foregroundStyle(.secondary).lineLimit(2) }
             }
+            if let source = model.currentPaper?.importedFrom {
+                HStack {
+                    Link(L("论文来源"), destination: source)
+                    if let download = model.currentPaper?.downloadedFrom, download != source { Link(L("下载来源"), destination: download) }
+                    if let version = sourceVersionTitle { Text(version).font(Design.small).foregroundStyle(.secondary) }
+                }
+            }
             if let evidence = model.currentPaper?.metadata?.venueEvidence { Text(evidence).font(Design.small).foregroundStyle(.secondary).textSelection(.enabled) }
             Text(L("摘要")).font(.system(size: 12)).foregroundStyle(.secondary)
             TextEditor(text: $value.abstract).frame(height: 100).padding(6).background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
@@ -45,6 +52,15 @@ struct MetadataPanel: View {
             if year == (old?.year.map(String.init) ?? "") { year = metadata.year.map(String.init) ?? "" }
         }
         .onAppear { value = model.currentPaper?.metadata ?? model.selectedID.flatMap { model.metadataCandidates[$0] } ?? Bibliography(title: model.currentPaper?.title ?? ""); authors = value.authors.joined(separator: "; "); year = value.year.map(String.init) ?? "" }
+    }
+    private var sourceVersionTitle: String? {
+        switch model.currentPaper?.sourceVersion {
+        case "publishedVersion": L("出版版本")
+        case "acceptedVersion": L("作者接受稿")
+        case "submittedVersion": L("预印本版本")
+        case .some: L("开放版本")
+        case .none: nil
+        }
     }
     private var sourceName: String {
         let source = value.venueOrigin ?? value.origin

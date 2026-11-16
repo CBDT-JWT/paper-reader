@@ -1,6 +1,21 @@
 # Distribution validation — 2026-11-16
 
-## Current release 0.4.16 / build 21
+## Current release 0.4.18 / build 23
+
+Published [v0.4.18](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.18) from `82bfec4`. Link importing supports arXiv / IEEE / DOI / PDF resolution, PDF validation and copy-based import into the chosen folder. AI tools include arXiv search and paper downloading without switching the active reading context. Source links and open-copy version markers are stored with each imported record. Explicit local imports copy into the selected workspace folder, including imports from existing workspace paths. Hidden staging and collision numbering protect publication of completed copies.
+
+Debug and optimized Swift builds, offline editor bundling, app packaging and the 375-key localization check completed. At the user's request, functional, UI and live-download tests were skipped. Actual arXiv / IEEE downloads, institutional access, open-copy fallback, file-copy and cancellation interaction, and AI tool round-trips remain unverified. Browser login state is separate from the app's download session. The source-page fallback and open-version provenance are documented in [paper importing](PAPER_IMPORT.md).
+
+Application notarization `811b1ddf-8f06-47c9-92a2-bbf3f9fd7849` and DMG notarization `87ea6664-f6cb-4b92-8130-34e98c2e6835` were Accepted. Both were stapled and passed Gatekeeper assessment. The 11,793,923-byte DMG SHA-256 is `ff37811a36c22e74d270333544655d58813cf40afcc9795c4703dc9ed036021e`, matching the GitHub asset digest. Home deployment run `43819175236` succeeded. Live release metadata and build-23 feed match the repository, and Sparkle's verifier accepts the live feed signature. Installation and relaunch were left to the normal update flow.
+
+## Historical release 0.4.17 / build 22
+
+Published [v0.4.17](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.17) from `2451b48`, softening the diagonal rainbow gradient and adding spring settling, continuous dragging and crossfaded maximum-strength color. Reduced-motion preferences disable these transitions. Compilation, packaging and distribution completed, with functional and UI testing skipped at the user's request.
+
+Application notarization `34596685-2881-4e4e-8a97-55fae322a8fd` and DMG notarization `b11bdeff-f323-4e0b-a16b-5720f703187c` were Accepted. The 11,695,861-byte DMG SHA-256 is `4ca5c996ecc16bb329fa3f39d0f4c45b5a2b837a7caace5c54fbd116160297ef`. Home deployment run `43815202046` completed successfully.
+
+
+## Historical release 0.4.16 / build 21
 
 Published [v0.4.16](https://github.com/CBDT-JWT/paper-reader/releases/tag/v0.4.16) from `9b2f893`. The effort selector now uses a compact popover and discrete track, with diagonal rainbow stripes and a static metallic highlight at the highest supported setting. Provider and model search occupy a separate page with bounded scrolling. Default Codex model and effort metadata come from the existing model/list response. Debug and optimized Swift builds, offline editor bundling, application packaging and the 359-key localization check completed.
 
